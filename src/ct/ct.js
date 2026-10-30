@@ -360,7 +360,7 @@ export async function createCT(stage) {
     if (S.rotorOmega < 2 && idle) S.rotorOmega = 0;
     S.rotorAngle += (S.rotorOmega * Math.PI / 180) * dt * ts; rotor.rotation.x = S.rotorAngle;
     // beam fan
-    tubeAnim.update(dt, S.tubeAnim && (S.selected === 'xray_tube' || (S.scanState && S.scanState.kind === 'demo')), S.xray || (S.selected === 'xray_tube' && !S.scanState));
+    tubeAnim.update(dt, S.tubeAnim && (S.selected === 'xray_tube' || (S.scanState && S.scanState.kind === 'demo')), S.xray || (S.selected === 'xray_tube' && !S.scanState), S.collim / 1000);
     fan.visible = S.xray && S.fan; if (S.xray) setFan(S.scanState && S.scanState.kind === 'scout' ? 0.01 : S.collim / 1000);
     // tube heat cooling (-0.35 MHU / min)
     S.heat = Math.max(0, S.heat - ((0.35 / 60) * dt * ts)) ;
@@ -390,6 +390,7 @@ export async function createCT(stage) {
     L('SCAN CONTROL', 522, 18, '#6fa3ad');
     L('STATUS  ' + S.status, 522, 164, S.xray ? '#ff5a4a' : '#7be0a0'); L(`${S.kvp} kVp  ${(S.mAs / S.trot).toFixed(0)} mA  pitch ${S.pitch}`, 522, 188); L(`table ${(axes.tableIn.val * 1000).toFixed(0)} mm   rot ${S.trot}s`, 522, 210); L(`tube heat ${(S.heat / S.heatCap * 100).toFixed(0)} %`, 522, 232, S.heat / S.heatCap > 0.8 ? '#ffb347' : '#c8e1e6');
     if (st) { L(`${st.kind.toUpperCase()} ${Math.round(st.progress * 100)} %`, 760, 232, '#ffd34d'); g.fillStyle = '#1b2a30'; g.fillRect(522, 252, 488, 14); g.fillStyle = '#ffd34d'; g.fillRect(522, 252, 488 * st.progress, 14); }
+    g.save(); g.textAlign = 'right'; g.font = 'bold 15px sans-serif'; g.fillStyle = 'rgba(120,225,235,0.85)'; g.fillText('VAIDER LAB', 500, 278); g.fillText('VAIDER LAB', 1012, 278); g.restore();
     monTex.needsUpdate = true; monTex2.needsUpdate = true;
   }
   const scoutCache = new WeakMap();

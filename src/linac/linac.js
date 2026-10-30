@@ -64,6 +64,35 @@ export async function createLinac(stage) {
   }));
   const gunSolid = gantryInner.getObjectByName('05_Electro_Gun'), wgSolid = gantryInner.getObjectByName('06_Waveguide');
   const kv = gantryInner.getObjectByName('15_KV_Imagine_System');
+  // flattening-filter carousel (4 positions: 6 MV, 10 MV, 15 MV filters and the thin FFF plate); the carousel slides so the filter for the selected beam sits in the beam line
+  const ffOrig = world.getObjectByName('11_Flatening_Filter'); if (ffOrig) ffOrig.visible = false;
+  const ffCar = new T.Group(); ffCar.position.set(ISO.x, 1.650, 0); gantryInner.add(ffCar);
+  const FF_PITCH = 0.10, ffSlotZ = (k) => (k - 1.5) * FF_PITCH;
+  { const sh = new T.Shape(); sh.moveTo(-0.045, -0.2); sh.lineTo(0.045, -0.2); sh.lineTo(0.045, 0.2); sh.lineTo(-0.045, 0.2); sh.closePath();
+    for (let k = 0; k < 4; k++) { const h = new T.Path(); h.absarc(0, ffSlotZ(k), 0.026, 0, Math.PI * 2, true); sh.holes.push(h); }
+    const bar = new T.Mesh(new T.ExtrudeGeometry(sh, {depth: 0.004, bevelEnabled: false}).rotateX(Math.PI / 2), M.steelBrushed()); bar.position.set(0, 0.004, 0); bar.castShadow = true; ffCar.add(bar);
+    const mats = [M.brass(), M.copper(), M.steelBrushed(), M.steelDark()], hs = [0.011, 0.016, 0.021, 0];
+    for (let k = 0; k < 4; k++) {
+      const pts = hs[k] ? [new T.Vector2(0, hs[k]), new T.Vector2(0.006, hs[k] * 0.8), new T.Vector2(0.015, hs[k] * 0.35), new T.Vector2(0.024, 0.002), new T.Vector2(0.024, 0), new T.Vector2(0, 0)]
+        : [new T.Vector2(0, 0.0025), new T.Vector2(0.024, 0.0025), new T.Vector2(0.024, 0), new T.Vector2(0, 0)];            // FFF: thin flat plate, no flattening cone
+      const cone = new T.Mesh(new T.LatheGeometry(pts, 40), mats[k]); cone.position.set(0, 0.0035, ffSlotZ(k)); cone.castShadow = true; ffCar.add(cone);
+    }
+    register('11_Flatening_Filter', ffCar); }
+  const ffIndex = () => (S.fff ? 3 : ({6: 0, 10: 1, 15: 2}[S.energy] ?? 0));
+  let ffPos = null;
+  // the original kV model also carries a third (bottom) panel; the bottom imager in v2 is the MV portal imager only, so drop that component
+  { let km; kv.traverse((o) => { if (o.isMesh) km = o; });
+    if (km) {
+      const g = km.geometry, pos = g.attributes.position, idx = g.index ? g.index.array : null, nT = (idx ? idx.length : pos.count) / 3, tri = (t, k) => (idx ? idx[t * 3 + k] : t * 3 + k);
+      const key = (i) => pos.getX(i).toFixed(4) + ',' + pos.getY(i).toFixed(4) + ',' + pos.getZ(i).toFixed(4), par = new Map();
+      const find = (a) => { while (par.get(a) !== a) { par.set(a, par.get(par.get(a))); a = par.get(a); } return a; };
+      for (let t = 0; t < nT; t++) for (let k = 0; k < 3; k++) { const kk = key(tri(t, k)); if (!par.has(kk)) par.set(kk, kk); }
+      for (let t = 0; t < nT; t++) { const a = find(key(tri(t, 0))); for (let k = 1; k < 3; k++) { const b = find(key(tri(t, k))); if (a !== b) par.set(b, a); } }
+      const bb = new Map();
+      for (let t = 0; t < nT; t++) { const r = find(key(tri(t, 0))); let c = bb.get(r); if (!c) bb.set(r, (c = {zmin: 1e9, zmax: -1e9, ymax: 0})); for (let k = 0; k < 3; k++) { const i = tri(t, k); c.zmin = Math.min(c.zmin, pos.getZ(i)); c.zmax = Math.max(c.zmax, pos.getZ(i)); c.ymax = Math.max(c.ymax, Math.abs(pos.getY(i))); } }
+      const drop = new Set([...bb].filter(([, c]) => c.zmin > 0.24 && c.zmax > 0.45 && c.ymax < 0.1).map(([r]) => r));
+      if (drop.size) { const keep = []; for (let t = 0; t < nT; t++) if (!drop.has(find(key(tri(t, 0))))) keep.push(tri(t, 0), tri(t, 1), tri(t, 2)); g.setIndex(keep); g.computeBoundingSphere(); }
+    } }
   const eBeam = createElectronBeam(gantryInner, {targetX: ISO.x, targetY: ISO.y + 1.0});   // electron/photon teaching animation (shown when gun, waveguide, magnet or target is selected)
   const E_PARTS = ['05_Electro_Gun_Split', '06_Waveguide_Split', '07_Bending_Magnet', '08_Target'];
 
@@ -221,6 +250,7 @@ export async function createLinac(stage) {
     head.setBeam({visible: S.beamVis && (S.beamOn || S.beamPreview), intensity: S.beamOn ? 1 : 0.55});
     head.setFieldLight(S.fieldLight && !S.beamOn);
     couch.updateLasers(S.lasers);
+    { const goal = -ffSlotZ(ffIndex()); if (ffPos === null) ffPos = goal; ffPos += (goal - ffPos) * Math.min(1, dt * 4 * Math.max(1, S.timeScale / 4)); if (Math.abs(goal - ffPos) < 0.0005) ffPos = goal; ffCar.position.z = ffPos; }
     eBeam.update(dt, S.eAnim && (E_PARTS.includes(S.selected) || (S.beamOn && S.coverOpacity < 0.3))); room.wallLasers.visible = S.lasers; room.console.update(S, axes, S.energy);
     // dose slice refresh (throttled)
     slice.visible = S.doseView;

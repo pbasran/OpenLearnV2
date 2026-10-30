@@ -29,7 +29,7 @@ const modelDescriptions =
     'Index': '2',
     'Modelname': 'xray_tube',
     'Title': 'X-Ray Tube',
-    'Description': 'The X-ray tube generates the fan-shaped X-ray beam used in CT imaging. Electrons are accelerated from the cathode filament to the metal anode, producing X-rays via Bremsstrahlung and characteristic emissions. Cooling systems remove heat generated during rapid exposures.<br><br><i>Animation:</i> with the tube selected, electrons (cyan) leave the heated cathode filament, are accelerated by the tube voltage, and strike the tungsten focal track on the anode; the yellow photons leaving downward form the fan beam. Use <b>Stationary beam demo</b> on the Scan tab to see this with the real fan beam while the gantry is parked (tube at top, no rotation, no table motion).',
+    'Description': 'The X-ray tube generates the fan-shaped X-ray beam used in CT imaging. Electrons are accelerated from the cathode filament to the metal anode, producing X-rays via Bremsstrahlung and characteristic emissions. Cooling systems remove heat generated during rapid exposures.<br><br><i>Animation:</i> with the tube selected, electrons (cyan) leave the heated cathode filament, are accelerated by the tube voltage, and strike the tungsten focal track of the <b>rotating anode</b>; photons are emitted from that focal spot in all directions. Those outside the opening are stopped by the collimator blades; the rest form the fan beam and reach the detector arc. Use <b>Stationary beam demo</b> on the Scan tab to see this with the real fan beam while the gantry is parked (tube at top, no rotation, no table motion).',
   },
 
   {

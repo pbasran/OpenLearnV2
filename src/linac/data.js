@@ -95,7 +95,7 @@ const modelDescriptions =
     'Modelname': '11_Flatening_Filter',
     'Title': 'The Linac Gantry System',
     'Subtitle': 'Flattening Filter',
-    'Description': 'The Flattening Filter is used to reduce and create a uniform radiation dose inside the patient. It is generally made up of aluminum, iron, copper, tungsten, or a mixture of these materials. \n\n Removing the flattening filter increases beam intensity, especially near the central axis. Increased intensity reduces treatment time, especially for high‐dose stereotactic radiotherapy/radiosurgery (SRT/SRS). Furthermore, removing the flattening filter reduces out‐of‐field dose and improves beam modeling accuracy.',
+    'Description': 'The Flattening Filter is used to reduce and create a uniform radiation dose inside the patient. It is generally made up of aluminum, iron, copper, tungsten, or a mixture of these materials. \n\n Removing the flattening filter increases beam intensity, especially near the central axis. Increased intensity reduces treatment time, especially for high‐dose stereotactic radiotherapy/radiosurgery (SRT/SRS). Furthermore, removing the flattening filter reduces out‐of‐field dose and improves beam modeling accuracy.<br><br><i>Filter carousel (v2):</i> the filters sit on a sliding carousel with four positions: a 6 MV, a 10 MV and a 15 MV flattening filter, and a thin flat plate for flattening-filter-free (FFF) beams. When you choose a photon energy (or switch FFF on) on the Beam &amp; dose tab, the carousel slides so the matching filter moves into the beam line. In FFF mode the cone is out of the beam; the beam is peaked on the central axis, with a higher dose rate.',
   },
 
   {
