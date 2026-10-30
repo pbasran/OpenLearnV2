@@ -36,6 +36,8 @@ async function setMode(id) {
   current = id; ui.hideCard(); m.start(); ui.modes(MODES, id, setMode);
   window.mode = id;
 }
+const xBanner = document.createElement('div'); xBanner.className = 'xbanner'; xBanner.textContent = '☢ X-RAYS ON'; xBanner.style.display = 'none'; document.body.append(xBanner);
+stage.onFrame(() => { const m = current && mods[current]; const on = !!(m && (current === 'linac' ? m.obj.S.beamOn : m.obj.S.xray)); const d = on ? 'block' : 'none'; if (xBanner.style.display !== d) xBanner.style.display = d; });
 stage.onFrame((dt) => { if (current && mods[current]) mods[current].update(dt); });
 window.tick = (dt) => { if (current) mods[current].update(dt); };
 await setMode(q.get('mode') === 'ct' ? 'ct' : 'linac');

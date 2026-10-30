@@ -365,7 +365,7 @@ export async function createCT(stage) {
     // tube heat cooling (-0.35 MHU / min)
     S.heat = Math.max(0, S.heat - ((0.35 / 60) * dt * ts)) ;
     // warning lamp + door
-    lamp.material.color.set(S.xray ? 0xff2a1a : 0x1a6a40); lamp.material.emissive.set(S.xray ? 0xff2a1a : 0x1a6a40); lampLight.intensity = S.xray ? 3 : 0; lampSign.material.opacity = S.xray ? 1 : 0;
+    lamp.material.color.set(S.xray ? 0xff2a1a : 0x1a6a40); lamp.material.emissive.set(S.xray ? 0xff2a1a : 0x1a6a40); lampLight.intensity = S.xray ? 3 : 0; lampSign.material.opacity = S.xray ? (Math.floor(performance.now() / 350) % 2 === 0 ? 1 : 0.15) : 0;
     const tgt = S.doorOpen ? 1 : 0; doorOpenAmt += (tgt - doorOpenAmt) * Math.min(1, dt * 6); door.position.x = doorX + doorOpenAmt * (doorW - 0.05);
     // covers (gantry housing transparency)
     if (!S.selected) { const tr = S.coverOpacity < 0.999; if (housingMat.transparent !== tr) { housingMat.transparent = tr; housingMat.needsUpdate = true; } housingMat.opacity = S.coverOpacity; housingMat.depthWrite = S.coverOpacity > 0.6; }

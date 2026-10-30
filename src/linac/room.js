@@ -41,6 +41,9 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
   trefoil.rotation.y = Math.PI / 2; trefoil.rotation.z = Math.PI / 2; trefoil.position.set(cx - W / 2 + 0.305, floorY + 1.55, -1.6); g.add(trefoil);
   const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, 0.34), M.led(0x1a6a40));
   lamp.position.set(cx - W / 2 + 0.05, floorY + 2.35, -1.6); g.add(lamp);
+  const signCv = document.createElement('canvas'); signCv.width = 512; signCv.height = 112; { const c = signCv.getContext('2d'); c.fillStyle = '#b00d0d'; c.fillRect(0, 0, 512, 112); c.strokeStyle = '#fff'; c.lineWidth = 6; c.strokeRect(5, 5, 502, 102); c.fillStyle = '#fff'; c.font = 'bold 66px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('X-RAYS ON', 256, 58); }
+  const signTx = new THREE.CanvasTexture(signCv); signTx.colorSpace = THREE.SRGBColorSpace;
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.153), new THREE.MeshBasicMaterial({map: signTx, toneMapped: false, side: THREE.DoubleSide})); sign.rotation.y = Math.PI / 2; sign.position.set(lamp.position.x + 0.045, lamp.position.y + 0.21, lamp.position.z); sign.visible = false; g.add(sign);
   const lampLight = new THREE.PointLight(0xff3020, 0, 3, 2); lampLight.position.copy(lamp.position).add(new THREE.Vector3(0.3, 0, 0)); g.add(lampLight);
 
   // recessed ceiling light panels (emissive) so the room reads as lit
@@ -105,6 +108,7 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
   consoleApi.update({beamOn: false, status: 'READY', delivered: 0, mu: 100, energy: 6, fff: false, doorOpen: true}, {gantry: {val: 0}, coll: {val: 0}, couchRot: {val: 0}}, 6);
   return {
     group: g, W, D, cx, cz, lampLight, console: consoleApi, consoleGroup: consoleG,
+    flashSign(on, tms) { sign.visible = on && (Math.floor(tms / 350) % 2 === 0); },
     setBeamOn(on) { lamp.material.color.set(on ? 0xff2a1a : 0x1a6a40); lamp.material.emissive.set(on ? 0xff2a1a : 0x1a6a40); lampLight.intensity = on ? 3 : 0; },
     setDoor(open) { door.position.z = open ? -0.4 : -1.6; },
     wallLasers: lines,

@@ -257,6 +257,7 @@ export async function createLinac(stage) {
     head.setFieldLight(S.fieldLight && !S.beamOn);
     couch.updateLasers(S.lasers);
     { const goal = -ffSlotZ(ffIndex()); if (ffPos === null) ffPos = goal; ffPos += (goal - ffPos) * Math.min(1, dt * 4 * Math.max(1, S.timeScale / 4)); if (Math.abs(goal - ffPos) < 0.0005) ffPos = goal; ffCar.position.z = ffPos; }
+    room.flashSign(S.beamOn, performance.now());
     { const on = S.beamOn && Math.abs(axes.gantry.val) < 1.5 && S.coverOpacity < 0.3; eggMesh.visible = on; if (on) eggMesh.material.opacity = 0.55 + 0.25 * Math.sin(performance.now() / 260); }
     eBeam.update(dt, S.eAnim && (E_PARTS.includes(S.selected) || (S.beamOn && S.coverOpacity < 0.3))); room.wallLasers.visible = S.lasers; room.console.update(S, axes, S.energy);
     // dose slice refresh (throttled)
