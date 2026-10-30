@@ -30,9 +30,9 @@ npm run build      # static site in dist/ (relative paths; can be hosted in any 
 
 | | v1 | v2 |
 |---|---|---|
-| Visuals | flat-shaded GLBs | PBR paint / metal / glass / carbon, hospital-vault environment lighting, shadows, room with door, window, console |
+| Visuals | flat-shaded GLBs | PBR paint / metal / glass / carbon, hospital-vault environment lighting, shadows, room with door, console (CT room has a lead-glass window; the linac vault does not) |
 | Linac mechanics | free rotation | IEC-61217 axes with real relative speeds, travel limits, **collision interlocks** (head / arm / kV arms / MV imager vs. couch, phantom, floor), door interlock |
-| Linac look | — | ring-style gantry face (no dial), glossy head with no box round the collimator so the jaws and MLC leaves are visible, treatment console in a control room outside the bunker (viewing window; live status screens) |
+| Linac look | — | ring-style gantry face (no dial), glossy head with no box round the collimator so the jaws and MLC leaves are visible, treatment console in a control room outside the bunker (no viewing window, as in a real megavoltage vault: live status screens, a command log and a CCTV view; intercom and ceiling camera in the vault) |
 | Linac field | — | 60-pair MLC (0.5 / 1.0 cm leaves), 4 tungsten jaws with divergent faces, shaped **light field** that rotates with collimator & gantry, room lasers drawn on the phantom |
 | Linac physics | — | educational dose model: PDD, output factor, off-axis profile (flattened / FFF), SSD from real geometry, isodose slice in the phantom |
 | Linac workflow | — | time-out → laser set-up (2 mm) → image guidance (kV AP + lateral with couch shift; MV portal image of the field) → beam parameters (R&V) → beam-on with interlocks |

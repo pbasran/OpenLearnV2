@@ -18,15 +18,9 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
   const wallMat = M.wall();
   const wall = (w, h, x, y, z, ry) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat); m.position.set(x, y, z); m.rotation.y = ry; m.receiveShadow = true; g.add(m); return m; };
   const H = ceilY - floorY, my = floorY + H / 2;
-  // -x end wall (foot of couch) with a lead-glass viewing window into the control room
-  const WIN = {z: 1.55, w: 1.5, y0: floorY + 1.0, y1: floorY + 1.95};
-  { const sh = new THREE.Shape(); sh.moveTo(-D / 2, -H / 2); sh.lineTo(D / 2, -H / 2); sh.lineTo(D / 2, H / 2); sh.lineTo(-D / 2, H / 2); sh.closePath();
-    const lx = -WIN.z, hole = new THREE.Path(); hole.moveTo(lx - WIN.w / 2, WIN.y0 - my); hole.lineTo(lx + WIN.w / 2, WIN.y0 - my); hole.lineTo(lx + WIN.w / 2, WIN.y1 - my); hole.lineTo(lx - WIN.w / 2, WIN.y1 - my); hole.closePath(); sh.holes.push(hole);
-    const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), wallMat); m.position.set(cx - W / 2, my, cz); m.rotation.y = Math.PI / 2; m.receiveShadow = true; g.add(m);
-    const pane = new THREE.Mesh(new THREE.PlaneGeometry(WIN.w, WIN.y1 - WIN.y0), new THREE.MeshPhysicalMaterial({color: 0xbfe0d0, transparent: true, opacity: 0.18, roughness: 0.05, metalness: 0, side: THREE.DoubleSide, depthWrite: false}));
-    pane.rotation.y = Math.PI / 2; pane.position.set(cx - W / 2 + 0.01, (WIN.y0 + WIN.y1) / 2, WIN.z); g.add(pane);
-    const fm = M.paintGrey(); for (const [w, h, dz, dy] of [[0.05, WIN.y1 - WIN.y0 + 0.05, WIN.w / 2, 0], [0.05, WIN.y1 - WIN.y0 + 0.05, -WIN.w / 2, 0], [WIN.w + 0.05, 0.05, 0, (WIN.y1 - WIN.y0) / 2], [WIN.w + 0.05, 0.05, 0, -(WIN.y1 - WIN.y0) / 2]]) {
-      const f = new THREE.Mesh(new THREE.BoxGeometry(0.05, h, w), fm); f.position.set(cx - W / 2 + 0.005, (WIN.y0 + WIN.y1) / 2 + dy, WIN.z + dz); g.add(f); } }
+  // -x end wall (foot of couch): solid shielded wall. Megavoltage vaults have no viewing window - the operator watches CCTV and talks over an intercom.
+  const WIN = {z: 1.55};                          // (only used to place the console in the control room)
+  wall(D, H, cx - W / 2, my, cz, Math.PI / 2);
   wall(D, H, cx + W / 2, my, cz, -Math.PI / 2);         // +x wall behind the stand
   wall(W, H, cx, my, cz - D / 2, 0);                    // -z wall
   const wallPos = wall(W, H, cx, my, cz + D / 2, Math.PI);
@@ -46,6 +40,14 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.153), new THREE.MeshBasicMaterial({map: signTx, toneMapped: false, side: THREE.FrontSide})); sign.rotation.y = Math.PI / 2; sign.position.set(lamp.position.x + 0.045, lamp.position.y + 0.21, lamp.position.z); sign.visible = false; g.add(sign);
   const signB = sign.clone(); signB.rotation.y = -Math.PI / 2; signB.position.x = lamp.position.x - 0.045 - 0.0; signB.visible = false; g.add(signB);  // second face so the text reads correctly from outside the wall too
   const lampLight = new THREE.PointLight(0xff3020, 0, 3, 2); lampLight.position.copy(lamp.position).add(new THREE.Vector3(0.3, 0, 0)); g.add(lampLight);
+
+  // CCTV dome camera on the ceiling and an intercom panel beside the door (the operator's only view into the vault)
+  { const dome = new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI), new THREE.MeshPhysicalMaterial({color: 0x20262b, roughness: 0.15, metalness: 0.2, clearcoat: 1}));
+    dome.position.set(cx - W / 2 + 0.55, ceilY - 0.02, 1.4); g.add(dome);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.03, 20), M.paintWhite()); base.position.set(dome.position.x, ceilY - 0.015, dome.position.z); g.add(base);
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6), M.led(0xff2a1a)); led.position.set(dome.position.x + 0.07, ceilY - 0.03, dome.position.z); g.add(led);
+    const ic = new THREE.Mesh(new RoundedBoxGeometry(0.03, 0.2, 0.12, 2, 0.008), M.plasticDark()); ic.position.set(cx - W / 2 + 0.02, floorY + 1.45, -0.55); g.add(ic);
+    const grill = new THREE.Mesh(new THREE.CircleGeometry(0.035, 16), new THREE.MeshBasicMaterial({color: 0x8d979f})); grill.rotation.y = Math.PI / 2; grill.position.set(cx - W / 2 + 0.036, floorY + 1.49, -0.55); g.add(grill); }
 
   // recessed ceiling light panels (emissive) so the room reads as lit
   const panelMat = new THREE.MeshBasicMaterial({color: new THREE.Color(1, 1, 0.97).multiplyScalar(1.4)});
@@ -68,7 +70,7 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
   const ceilProj = new THREE.Mesh(new RoundedBoxGeometry(0.2, 0.08, 0.12, 2, 0.02), M.paintGrey()); ceilProj.position.set(iso.x, ceilY - 0.04, 0); g.add(ceilProj);
 
 
-  // ---- control room OUTSIDE the bunker (behind the viewing window): floor, walls, desk, monitors, keyboard, chair ----
+  // ---- control room OUTSIDE the bunker (no window: CCTV + intercom): floor, walls, desk, monitors, keyboard, chair ----
   const xo = cx - W / 2;                    // outer face of the -x wall
   const CR = {len: 3.0, z0: 0.15, z1: D / 2};
   const crMid = (CR.z0 + CR.z1) / 2, crW = CR.z1 - CR.z0;
@@ -86,13 +88,27 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
   const scrA = mk(), scrB = mk();
   const screen = (tex, z, ry) => { const grp = new THREE.Group(); grp.position.set(-0.1, 0.80, z); grp.rotation.y = ry;
     const body = new THREE.Mesh(new RoundedBoxGeometry(0.04, 0.34, 0.54, 2, 0.01), M.plasticDark()); body.position.set(0, 0.28, 0); body.castShadow = true; grp.add(body);
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.50, 0.30), new THREE.MeshBasicMaterial({map: tex, toneMapped: false})); face.rotation.y = Math.PI / 2; face.position.set(0.0215, 0.28, 0); grp.add(face);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.50, 0.30), new THREE.MeshBasicMaterial({map: tex, toneMapped: false})); face.rotation.y = -Math.PI / 2; face.position.set(-0.0215, 0.28, 0); grp.add(face);
     const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.12, 12), M.steelBrushed()); stand.position.set(0, 0.06, 0); grp.add(stand); consoleG.add(grp); };
   screen(scrA.t, -0.32, Math.PI / 2 - Math.PI / 2 + 0.0); screen(scrB.t, 0.32, 0);
-  // the screens look toward +x (the window): face normal is +x for ry = 0
-  const kb = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.02, 0.46, 2, 0.006), M.plasticDark()); kb.position.set(0.18, 0.77, 0); consoleG.add(kb);
-  const beamBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.03, 20), M.led(0x1a6a40)); beamBtn.position.set(0.22, 0.785, -0.62); consoleG.add(beamBtn);
-  const stopBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.035, 20), M.led(0x8a1a1a)); stopBtn.position.set(0.22, 0.787, 0.62); consoleG.add(stopBtn);
+  // the screens face -x, toward the operator's chair (the operator looks at the shielded wall)
+  const cctv = document.createElement('canvas'); cctv.width = 512; cctv.height = 320; const cctvTx = new THREE.CanvasTexture(cctv); cctvTx.colorSpace = THREE.SRGBColorSpace;
+  { const grp = new THREE.Group(); grp.position.set(-0.12, 0.80, 0.80); const body = new THREE.Mesh(new RoundedBoxGeometry(0.04, 0.26, 0.40, 2, 0.01), M.plasticDark()); body.position.set(0, 0.24, 0); grp.add(body);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.37, 0.231), new THREE.MeshBasicMaterial({map: cctvTx, toneMapped: false})); face.rotation.y = -Math.PI / 2; face.position.set(-0.0215, 0.24, 0); grp.add(face);
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.026, 0.1, 12), M.steelBrushed()); st.position.set(0, 0.06, 0); grp.add(st); consoleG.add(grp); }
+  function drawCctv(S, axes) {   // schematic live view of the vault (plan view): couch angle, gantry position, door, beam state
+    const c = cctv.getContext('2d'); c.fillStyle = '#0b1210'; c.fillRect(0, 0, 512, 320); c.strokeStyle = '#2d4a40'; c.lineWidth = 2; c.strokeRect(10, 24, 492, 286);
+    c.save(); c.translate(256, 170); const sc = 38;
+    c.strokeStyle = '#3d6b5a'; c.setLineDash([6, 5]); c.beginPath(); c.arc(0, 0, 1.75 * sc, 0, 7); c.stroke(); c.setLineDash([]);                                      // couch swing circle
+    c.save(); c.rotate(-(axes.couchRot.val * Math.PI) / 180); c.fillStyle = '#9fb7ae'; c.fillRect((-2.0 - axes.couchLng.val) * sc, -0.27 * sc, 2.1 * sc, 0.54 * sc); c.fillStyle = '#4f7f89'; c.fillRect((-0.15 - axes.couchLng.val) * sc, -0.15 * sc, 0.3 * sc, 0.3 * sc); c.restore();   // couch + phantom
+    const ga = (axes.gantry.val * Math.PI) / 180, hz = Math.sin(ga) * 1.0 * sc; c.strokeStyle = S.beamOn ? '#ff5a4a' : '#7fa0b0'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, hz); c.stroke();
+    c.fillStyle = '#2a343b'; c.fillRect(-0.36 * sc, hz - 0.31 * sc, 0.72 * sc, 0.62 * sc); c.strokeStyle = '#7fa0b0'; c.lineWidth = 1; c.strokeRect(-0.36 * sc, hz - 0.31 * sc, 0.72 * sc, 0.62 * sc); c.restore();
+    c.fillStyle = '#9fe0c0'; c.font = '13px monospace'; c.fillText('CAM 1  VAULT', 18, 18); c.fillStyle = '#ff5a4a'; c.beginPath(); c.arc(480, 14, 5, 0, 7); c.fill(); c.fillStyle = '#9fe0c0'; c.fillText('REC', 436, 18);
+    c.fillStyle = S.doorOpen ? '#ffb347' : '#7be0a0'; c.fillText('DOOR ' + (S.doorOpen ? 'OPEN' : 'CLOSED'), 18, 302); if (S.beamOn) { c.fillStyle = '#ff5a4a'; c.font = 'bold 20px sans-serif'; c.fillText('BEAM ON', 380, 302); }
+    cctvTx.needsUpdate = true; }
+  const kb = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.02, 0.46, 2, 0.006), M.plasticDark()); kb.position.set(-0.2, 0.77, 0); consoleG.add(kb);
+  const beamBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.03, 20), M.led(0x1a6a40)); beamBtn.position.set(-0.22, 0.785, -0.62); consoleG.add(beamBtn);
+  const stopBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.035, 20), M.led(0x8a1a1a)); stopBtn.position.set(-0.22, 0.787, 0.62); consoleG.add(stopBtn);
   const chair = new THREE.Group(); chair.position.set(-0.85, 0, 0); consoleG.add(chair);
   { const seat = new THREE.Mesh(new RoundedBoxGeometry(0.46, 0.07, 0.46, 3, 0.03), M.plasticDark()); seat.position.set(0, 0.5, 0); const back = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.5, 0.44, 3, 0.025), M.plasticDark()); back.position.set(-0.22, 0.78, 0);
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.45, 12), M.steelBrushed()); post.position.set(0, 0.25, 0); const base = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.03, 5), M.steelBrushed()); base.position.set(0, 0.03, 0);
@@ -104,10 +120,11 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
       scrA.draw('TREATMENT CONSOLE', [[`Status  ${S.status}`, S.beamOn ? '#ff7a6a' : '#7be0a0'], [`Energy  ${ENERGY} MV${S.fff ? ' FFF' : ''}`], [`Planned ${S.mu} MU`], [`Delivered ${S.delivered.toFixed(0)} MU`, '#ffe08a'], [`Door    ${S.doorOpen ? 'OPEN - interlock' : 'closed'}`, S.doorOpen ? '#ffb347' : '#7be0a0'], [`Gantry  ${axes.gantry.val.toFixed(1)} deg`], [`Coll    ${axes.coll.val.toFixed(1)} deg`], [`Couch   ${axes.couchRot.val.toFixed(1)} deg`]], S.beamOn);
       const lg = S.cmdLog.slice(-8).map((c, k, arr) => [`${c.t.slice(3)} ${c.text}`.slice(0, 40), c.hot ? '#ff9a8a' : (k === arr.length - 1 ? '#ffe08a' : '#bfe6ea')]);
       scrB.draw('COMMAND LOG', lg.length ? lg : [['(no instructions yet)', '#6fa3ad']], S.beamOn);
+      drawCctv(S, axes);
       beamBtn.material.color.set(S.beamOn ? 0xff2a1a : 0x1a6a40); beamBtn.material.emissive.set(S.beamOn ? 0xff2a1a : 0x1a6a40);
     },
   };
-  consoleApi.update({beamOn: false, status: 'READY', delivered: 0, mu: 100, energy: 6, fff: false, doorOpen: true, cmdLog: []}, {gantry: {val: 0}, coll: {val: 0}, couchRot: {val: 0}}, 6);
+  consoleApi.update({beamOn: false, status: 'READY', delivered: 0, mu: 100, energy: 6, fff: false, doorOpen: true, cmdLog: []}, {gantry: {val: 0}, coll: {val: 0}, couchRot: {val: 0}, couchLng: {val: 0}}, 6);
   return {
     group: g, W, D, cx, cz, lampLight, console: consoleApi, consoleGroup: consoleG,
     flashSign(on, tms) { sign.visible = signB.visible = on && (Math.floor(tms / 350) % 2 === 0); },
