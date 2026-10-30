@@ -1,4 +1,5 @@
 // Linac assembly: GLB internals + procedural covers/couch/head, motorised axes with speeds, limits and collision interlocks.
+import {createElectronBeam} from './ebeam.js';
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {M, skin} from '../engine/materials.js';
@@ -63,6 +64,8 @@ export async function createLinac(stage) {
   }));
   const gunSolid = gantryInner.getObjectByName('05_Electro_Gun'), wgSolid = gantryInner.getObjectByName('06_Waveguide');
   const kv = gantryInner.getObjectByName('15_KV_Imagine_System');
+  const eBeam = createElectronBeam(gantryInner, {targetX: ISO.x, targetY: ISO.y + 1.0});   // electron/photon teaching animation (shown when gun, waveguide, magnet or target is selected)
+  const E_PARTS = ['05_Electro_Gun_Split', '06_Waveguide_Split', '07_Bending_Magnet', '08_Target'];
 
   // ---------- MV portal imager (EPID): retractable arm from the gantry drum, 43 x 43 cm panel 50 cm below the isocentre (SID 150 cm) ----------
   const mv = new T.Group(); mv.name = 'MV_Portal_Imager'; gantryInner.add(mv);
@@ -131,7 +134,7 @@ export async function createLinac(stage) {
   const S = {
     timeScale: 4, energy: 6, fff: false, mu: 100, delivered: 0, beamOn: false, doorOpen: true, fieldLight: true, lasers: true,
     beamVis: true, doseView: false, slicePlane: 'axial', coverOpacity: 1, kvOut: 0, kvTarget: 0, mvOut: 0, mvTarget: 0, status: 'READY', alerts: [], dirty: true,
-    interlock: true, clearance: 0.04, selected: null,
+    interlock: true, clearance: 0.04, selected: null, eAnim: true,
   };
 
   // --- collision geometry ---
@@ -218,7 +221,7 @@ export async function createLinac(stage) {
     head.setBeam({visible: S.beamVis && (S.beamOn || S.beamPreview), intensity: S.beamOn ? 1 : 0.55});
     head.setFieldLight(S.fieldLight && !S.beamOn);
     couch.updateLasers(S.lasers);
-    room.wallLasers.visible = S.lasers; room.console.update(S, axes, S.energy);
+    eBeam.update(dt, S.eAnim && (E_PARTS.includes(S.selected) || (S.beamOn && S.coverOpacity < 0.3))); room.wallLasers.visible = S.lasers; room.console.update(S, axes, S.energy);
     // dose slice refresh (throttled)
     slice.visible = S.doseView;
     const sig = [axes.gantry.val.toFixed(1), axes.coll.val.toFixed(1), axes.couchRot.val.toFixed(1), axes.couchLat.val.toFixed(3), axes.couchLng.val.toFixed(3), axes.couchVrt.val.toFixed(3), ap.version, S.energy, S.fff, S.slicePlane, S.doseView].join('|');

@@ -1,5 +1,6 @@
 // CT scanner assembly: GLB gantry/rotor/table + procedural room, phantom, lasers, fan beam, motorised axes with limits & interlocks,
 // scan sequencing (scout / helical / axial) and tube-heat model. Image physics lives in recon.js.
+import {createTubeAnim} from './tubeanim.js';
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {M, skin, tex} from '../engine/materials.js';
@@ -175,7 +176,7 @@ export async function createCT(stage) {
   axes.tableH.val = axes.tableH.tgt = 1.07;                // starts too low (needs raising to the isocentre)
   const S = {
     timeScale: 1, kvp: 120, mAs: 200, pitch: 1.0, thick: 5, kernel: 'standard', fov: 40, mode: 'helical', trot: 0.5, collim: 40, // mm
-    doorOpen: false, xray: false, rotorOmega: 0, rotorAngle: 0, lasers: true, coverOpacity: 1, fan: true, interlock: true, heat: 0, heatCap: 2.0,
+    doorOpen: false, tubeAnim: true, xray: false, rotorOmega: 0, rotorAngle: 0, lasers: true, coverOpacity: 1, fan: true, interlock: true, heat: 0, heatCap: 2.0,
     zOff: 0.025,                                            // phantom lateral placement error (m)
     status: 'READY', selected: null, scanState: null, scoutDone: null, scanRes: null, range: [20, 34], scoutView: 'ap',
   };
@@ -196,6 +197,7 @@ export async function createCT(stage) {
     fanGeo.attributes.position.needsUpdate = true;
   }
   setFan(0.04);
+  const tubeAnim = createTubeAnim(rotor, {xs: XS, rf: RF, rd: RD, ha: HA});
 
   /* ---------------- lasers (instanced red segments on the surfaces) ---------------- */
   const redMat = new T.MeshBasicMaterial({color: 0xff2418, toneMapped: false});
@@ -291,7 +293,8 @@ export async function createCT(stage) {
   function startScan(kind, opts = {}) {
     const bad = preflight(kind); if (bad) return bad;
     const id = (S._id = (S._id || 0) + 1), mA = S.mAs / S.trot;
-    if (kind === 'scout') {
+    if (kind === 'demo') { S.scanState = {kind, phase: 'spin', t: 0, progress: 0, id, mA, view: 'ap'}; S.status = 'POSITIONING'; }
+    else if (kind === 'scout') {
       S.scoutView = opts.view || 'ap';
       S.scanState = {kind, phase: 'move', view: S.scoutView, s0: -2, s1: PHANTOM_LEN + 2, progress: 0, id, mA, kvp: S.kvp, img: scout(S.scoutView, S.kvp, (axes.tableH.val - AX_Y) * 100, -S.zOff * 100, 40, id)};
       axes.tableIn.tgt = sToTable(-2); S.status = 'POSITIONING';
@@ -307,7 +310,8 @@ export async function createCT(stage) {
   function stepScan(dt) {
     const st = S.scanState; if (!st) return; const ts = S.timeScale;
     if (st.phase === 'move') { if (Math.abs(axes.tableIn.val - axes.tableIn.tgt) < 1e-4) { st.phase = 'spin'; st.t = 0; S.status = 'SPIN-UP'; axes.tableIn.tgt = axes.tableIn.val; } return; }
-    if (st.phase === 'spin') { st.t += dt * ts; const targetW = st.kind === 'scout' ? 0 : 360 / S.trot; S.rotorOmega += (targetW - S.rotorOmega) * Math.min(1, dt * ts * 1.8); if (st.t > (st.kind === 'scout' ? 0.5 : 1.8)) { st.phase = 'expose'; S.xray = true; S.status = 'X-RAY ON'; if (st.kind === 'scout') S.rotorAngle = st.view === 'ap' ? 0 : Math.PI / 2; } return; }
+    if (st.phase === 'spin') { st.t += dt * ts; const targetW = st.kind === 'scout' || st.kind === 'demo' ? 0 : 360 / S.trot; S.rotorOmega += (targetW - S.rotorOmega) * Math.min(1, dt * ts * 1.8); if (st.t > (st.kind === 'scout' || st.kind === 'demo' ? 0.5 : 1.8)) { st.phase = 'expose'; S.xray = true; S.status = 'X-RAY ON'; if (st.kind === 'scout' || st.kind === 'demo') S.rotorAngle = st.view === 'ap' ? 0 : Math.PI / 2; } return; }
+    if (st.phase === 'expose' && st.kind === 'demo') { st.progress = Math.min(1, st.progress + dt * ts / 12); S.heat += (S.kvp * st.mA * dt * ts * 0.2) / 1e6; if (st.progress >= 1) { S.scanState = null; S.xray = false; S.status = 'READY'; emit('scanEvent', {type: 'done', kind: 'demo'}); } return; }
     if (st.phase === 'expose') {
       const mAtot = st.mA, perRot = S.collim / 1000;                                   // beam width per rotation at iso
       let v;                                                                             // table speed (m/s)
@@ -356,6 +360,7 @@ export async function createCT(stage) {
     if (S.rotorOmega < 2 && idle) S.rotorOmega = 0;
     S.rotorAngle += (S.rotorOmega * Math.PI / 180) * dt * ts; rotor.rotation.x = S.rotorAngle;
     // beam fan
+    tubeAnim.update(dt, S.tubeAnim && (S.selected === 'xray_tube' || (S.scanState && S.scanState.kind === 'demo')), S.xray || (S.selected === 'xray_tube' && !S.scanState));
     fan.visible = S.xray && S.fan; if (S.xray) setFan(S.scanState && S.scanState.kind === 'scout' ? 0.01 : S.collim / 1000);
     // tube heat cooling (-0.35 MHU / min)
     S.heat = Math.max(0, S.heat - ((0.35 / 60) * dt * ts)) ;

@@ -44,6 +44,7 @@ export function buildCTPanels(stage, ct, ui) {
       S.tiltLock = true; tiltSl.disabled(true);
       refs.tiltLock = ui.toggle(g4, {label: 'Lock gantry tilt at 0° (typical for RadOnc)', value: true, onChange: (v) => { S.tiltLock = v; tiltSl.disabled(v); if (v) { axes.tilt.tgt = 0; tiltSl.set(0); } ui.toast(v ? 'Tilt locked at 0°' : 'Tilt unlocked', 'ok'); }});
       ui.note(g4, 'Tilt keeps the scan plane perpendicular to the anatomy (and avoids eyes in head CT). Tilt is blocked if the table or phantom would touch the bore.');
+      ui.toggle(g4, {label: 'Animate electrons & photons in the x-ray tube', value: true, onChange: (v) => { S.tubeAnim = v; }});
       refs.cover = ui.slider(g4, {label: 'Gantry cover (solid ↔ x-ray)', min: 0, max: 1, step: 0.05, value: 1, fmt: (v) => Math.round(v * 100) + '%', onInput: (v) => { S.coverOpacity = v; }});
       ui.button(g4, 'See the rotating tube', () => { S.coverOpacity = 0.12; refs.cover.set(0.12); ct.flyTo(ct.presets.front.target, ct.presets.front.cam); }, 'ghost');
       const g5 = ui.group(p, 'Room & display');
@@ -81,6 +82,7 @@ export function buildCTPanels(stage, ct, ui) {
       ui.note(g3, 'Modules (head → feet): <b>A</b> 0–10 cm HU inserts · <b>B</b> 10–20 cm uniformity · <b>C</b> 20–34 cm thorax. Tap the scout to move the nearest range end.');
       const g4 = ui.group(p, 'Acquire');
       const ar = ui.el('div'); g4.append(ar);
+      ui.button(ar, '☢ Stationary beam demo', () => doDemo(), 'ghost');
       refs.go = ui.button(ar, '☢ ACQUIRE SCAN', () => doScan(), 'warn'); ui.button(ar, 'Stop', () => { ct.abortScan('Operator stop'); ui.toast('Exposure stopped by operator.', 'bad'); }, 'ghost');
       refs.prog = ui.readout(g4, 'Progress'); refs.heat = ui.readout(g4, 'Tube heat load');
     }},
@@ -132,6 +134,13 @@ export function buildCTPanels(stage, ct, ui) {
 
   /* ---------- actions ---------- */
   function doScout(view_) { const bad = ct.startScan('scout', {view: view_}); if (bad) { ui.toast(bad, 'bad'); return; } ui.toast('Scout: tube parked, table travelling through the gantry…'); }
+  // teaching mode: tube parked at the top, gantry not rotating, table not moving; the electron-to-photon animation plays inside the tube
+  function doDemo() {
+    S.doorOpen = false; refs.door && refs.door.set(true);
+    const bad = ct.startScan('demo'); if (bad) { ui.toast(bad, 'bad'); return; }
+    S.coverOpacity = 0.12; refs.cover && refs.cover.set(0.12); ct.selectPart('xray_tube');
+    ui.toast('Stationary beam demo (~12 s): electrons strike the anode focal spot and the photon fan leaves the tube. No scan data are acquired.', 'ok');
+  }
   function doScan() { const bad = ct.startScan('scan'); if (bad) { ui.toast(bad, 'bad'); return; } ui.toast('Acquiring — keep clear of the gantry.'); }
   ct.on('scanEvent', (ev) => {
     if (ev.type === 'abort') ui.toast('Scan aborted: ' + ev.why, 'bad');

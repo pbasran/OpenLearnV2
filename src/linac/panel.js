@@ -92,6 +92,7 @@ export function buildLinacPanels(stage, lin, ui) {
       modelDescriptions.forEach((d, i) => {
         const b = ui.el('button', '', `<small style="color:var(--mute)">${String(i + 1).padStart(2, '0')}</small><br>${d.Subtitle || d.Title}`); b.onclick = () => selectIndex(i); grid.append(b); refs.partBtns.push(b);
       });
+      ui.toggle(p, {label: 'Animate electrons & photons (gun → waveguide → magnet → target)', value: true, onChange: (v) => { S.eAnim = v; }});
       ui.toggle(p, {label: 'Cutaway view (gun & waveguide)', value: false, onChange: (v) => lin.setCutaway(v)});
       ui.button(p, 'Clear selection', () => selectIndex(-1), 'ghost');
     }},
