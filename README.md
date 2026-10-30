@@ -1,5 +1,11 @@
 # OpenLearn v2 — realistic CT scanner & linear accelerator (WebXR)
 
+### Open the viewer: **https://pbasran.github.io/OpenLearnV2/**
+
+<img src="docs/OpenLearnV2_QR.png" alt="QR code to the OpenLearn v2 viewer" width="220">
+
+Scan with a phone camera. For augmented reality use Chrome on an ARCore-capable Android phone and tap **AR**. On iPhone/iPad the QR code opens the normal 3D view (iOS Safari has no WebXR AR).
+
 A separate, from-scratch rebuild of the OpenLearn CT and linac teaching models. **It does not modify or replace the deployed, IRB-approved v1 apps** (`RealtimeUrbanismLab/OpenLearn`, `VirtualLinac`). Host it at its own URL; any study use needs its own review.
 
 * 3D engine: three.js r161 (PBR materials, image-based lighting, soft shadows). No A-Frame / 8th Wall dependency.
