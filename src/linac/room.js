@@ -99,13 +99,14 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
   let lastSig = '';
   const consoleApi = {
     update(S, axes, ENERGY) {
-      const sig = [S.beamOn, S.status, S.delivered.toFixed(0), S.mu, axes.gantry.val.toFixed(0), axes.coll.val.toFixed(0), axes.couchRot.val.toFixed(0), S.energy, S.fff, S.doorOpen].join('|'); if (sig === lastSig) return; lastSig = sig;
-      scrA.draw('TREATMENT CONSOLE', [[`Status  ${S.status}`, S.beamOn ? '#ff7a6a' : '#7be0a0'], [`Energy  ${ENERGY} MV${S.fff ? ' FFF' : ''}`], [`Planned ${S.mu} MU`], [`Delivered ${S.delivered.toFixed(0)} MU`, '#ffe08a'], [`Door    ${S.doorOpen ? 'OPEN - interlock' : 'closed'}`, S.doorOpen ? '#ffb347' : '#7be0a0']], S.beamOn);
-      scrB.draw('MACHINE POSITIONS', [[`Gantry      ${axes.gantry.val.toFixed(1)} deg`], [`Collimator  ${axes.coll.val.toFixed(1)} deg`], [`Couch rot   ${axes.couchRot.val.toFixed(1)} deg`], [`Beam        ${S.beamOn ? 'ON' : 'off'}`, S.beamOn ? '#ff7a6a' : '#bfe6ea']], S.beamOn);
+      const sig = [S.cmdLog.length, S.beamOn, S.status, S.delivered.toFixed(0), S.mu, axes.gantry.val.toFixed(0), axes.coll.val.toFixed(0), axes.couchRot.val.toFixed(0), S.energy, S.fff, S.doorOpen].join('|'); if (sig === lastSig) return; lastSig = sig;
+      scrA.draw('TREATMENT CONSOLE', [[`Status  ${S.status}`, S.beamOn ? '#ff7a6a' : '#7be0a0'], [`Energy  ${ENERGY} MV${S.fff ? ' FFF' : ''}`], [`Planned ${S.mu} MU`], [`Delivered ${S.delivered.toFixed(0)} MU`, '#ffe08a'], [`Door    ${S.doorOpen ? 'OPEN - interlock' : 'closed'}`, S.doorOpen ? '#ffb347' : '#7be0a0'], [`Gantry  ${axes.gantry.val.toFixed(1)} deg`], [`Coll    ${axes.coll.val.toFixed(1)} deg`], [`Couch   ${axes.couchRot.val.toFixed(1)} deg`]], S.beamOn);
+      const lg = S.cmdLog.slice(-8).map((c, k, arr) => [`${c.t.slice(3)} ${c.text}`.slice(0, 40), c.hot ? '#ff9a8a' : (k === arr.length - 1 ? '#ffe08a' : '#bfe6ea')]);
+      scrB.draw('COMMAND LOG', lg.length ? lg : [['(no instructions yet)', '#6fa3ad']], S.beamOn);
       beamBtn.material.color.set(S.beamOn ? 0xff2a1a : 0x1a6a40); beamBtn.material.emissive.set(S.beamOn ? 0xff2a1a : 0x1a6a40);
     },
   };
-  consoleApi.update({beamOn: false, status: 'READY', delivered: 0, mu: 100, energy: 6, fff: false, doorOpen: true}, {gantry: {val: 0}, coll: {val: 0}, couchRot: {val: 0}}, 6);
+  consoleApi.update({beamOn: false, status: 'READY', delivered: 0, mu: 100, energy: 6, fff: false, doorOpen: true, cmdLog: []}, {gantry: {val: 0}, coll: {val: 0}, couchRot: {val: 0}}, 6);
   return {
     group: g, W, D, cx, cz, lampLight, console: consoleApi, consoleGroup: consoleG,
     flashSign(on, tms) { sign.visible = on && (Math.floor(tms / 350) % 2 === 0); },

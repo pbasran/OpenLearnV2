@@ -169,7 +169,7 @@ export async function createLinac(stage) {
   const S = {
     timeScale: 4, energy: 6, fff: false, mu: 100, delivered: 0, beamOn: false, doorOpen: true, fieldLight: true, lasers: true,
     beamVis: true, doseView: false, slicePlane: 'axial', coverOpacity: 1, kvOut: 0, kvTarget: 0, mvOut: 0, mvTarget: 0, status: 'READY', alerts: [], dirty: true,
-    interlock: true, clearance: 0.04, selected: null, eAnim: true,
+    interlock: true, clearance: 0.04, selected: null, eAnim: true, cmdLog: [],
   };
 
   // --- collision geometry ---
@@ -223,13 +223,34 @@ export async function createLinac(stage) {
 
   const cbs = {change: [], collision: []};
   let lastDoseUpdate = 0, lastSig = '';
+  /* ---------- console command log: every instruction given to the machine (from the panel, workflow or Skip) is echoed on the treatment console ---------- */
+  const cmdWatch = {t: 0, axes: {}, pend: {}, last: {}};
+  const hhmmss = () => new Date().toTimeString().slice(0, 8);
+  function logCmd(text, hot) { S.cmdLog.push({t: hhmmss(), text, hot: !!hot}); if (S.cmdLog.length > 60) S.cmdLog.shift(); }
+  const AX_LABEL = {gantry: ['GANTRY', 1, ' deg', 1], coll: ['COLLIMATOR', 1, ' deg', 1], couchRot: ['COUCH ROT', 1, ' deg', 1], couchLat: ['COUCH LAT', 100, ' cm', 1], couchLng: ['COUCH LNG (in+)', -100, ' cm', 1], couchVrt: ['COUCH VRT', 100, ' cm', 1]};
+  function watchCmds(dt) {
+    cmdWatch.t += dt;
+    const debounce = (key, val, fmt) => { const w = cmdWatch.pend[key]; if (cmdWatch.last[key] === undefined) { cmdWatch.last[key] = val; return; }
+      if (val === cmdWatch.last[key]) { delete cmdWatch.pend[key]; return; }
+      if (!w || w.val !== val) { cmdWatch.pend[key] = {val, t: cmdWatch.t}; return; }
+      if (cmdWatch.t - w.t > 0.45) { cmdWatch.last[key] = val; delete cmdWatch.pend[key]; logCmd(fmt(val)); } };
+    for (const [k, a] of Object.entries(axes)) { const [lab, sc, unit, dp] = AX_LABEL[k] || [k, 1, '', 2]; const v = k === 'couchVrt' ? (a.tgt - ISO.y) * 100 : a.tgt * sc; debounce(k, +v.toFixed(dp), (x) => `${lab} -> ${x.toFixed(dp)}${unit}`); }
+    debounce('energy', S.energy, (x) => `ENERGY ${x} MV`); debounce('fff', S.fff, (x) => (x ? 'FFF ON (filter out of beam)' : 'FFF OFF (flattening filter in)'));
+    debounce('mu', S.mu, (x) => `PLAN ${x} MU`); debounce('door', S.doorOpen, (x) => (x ? 'DOOR OPEN' : 'DOOR CLOSED'));
+    debounce('kv', S.kvTarget, (x) => (x > 0.5 ? 'kV ARMS EXTEND' : 'kV ARMS RETRACT')); debounce('mv', S.mvTarget, (x) => (x > 0.5 ? 'MV PANEL EXTEND' : 'MV PANEL RETRACT'));
+    debounce('fl', S.fieldLight, (x) => (x ? 'FIELD LIGHT ON' : 'FIELD LIGHT OFF')); debounce('las', S.lasers, (x) => (x ? 'ROOM LASERS ON' : 'ROOM LASERS OFF'));
+    { const st = ap.stats(), txt = `FIELD ${st.fx.toFixed(1)} x ${st.fy.toFixed(1)} cm`; debounce('apv', txt, (x) => x); }
+    if (cmdWatch.last.beam === undefined) cmdWatch.last.beam = S.beamOn;
+    if (S.beamOn !== cmdWatch.last.beam) { cmdWatch.last.beam = S.beamOn; logCmd(S.beamOn ? `BEAM ON  ${S.energy} MV${S.fff ? ' FFF' : ''}  ${S.mu} MU` : `BEAM OFF  delivered ${S.delivered.toFixed(0)} MU`, true); }
+  }
   function update(dt) {
+    watchCmds(dt);
     const ts = S.timeScale; let moving = false; let hit = null;
     for (const [name, a] of Object.entries(axes)) {
       const d = a.tgt - a.val; if (Math.abs(d) < 1e-6) { a.blocked = false; continue; }
       const wasHit = S.interlock ? collision() : null;
       const prev = a.val; a.val += Math.sign(d) * Math.min(Math.abs(d), a.speed * ts * dt); applyAxes();
-      if (S.interlock) { const c = collision(); if (c && !wasHit) { a.val = prev; applyAxes(); a.blocked = true; hit = {axis: name, what: c}; a.tgt = prev; } else a.blocked = false; }
+      if (S.interlock) { const c = collision(); if (c && !wasHit) { a.val = prev; applyAxes(); a.blocked = true; hit = {axis: name, what: c}; logCmd(`INTERLOCK: ${name} stopped - ${c}`, true); a.tgt = prev; } else a.blocked = false; }
       moving = true;
     }
     if (hit) { S.status = 'INTERLOCK'; cbs.collision.forEach((f) => f(hit)); }
