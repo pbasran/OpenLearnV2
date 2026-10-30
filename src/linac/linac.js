@@ -1,0 +1,300 @@
+// Linac assembly: GLB internals + procedural covers/couch/head, motorised axes with speeds, limits and collision interlocks.
+import * as THREE from 'three';
+import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {M, skin} from '../engine/materials.js';
+import {Aperture} from './aperture.js';
+import {Head} from './head.js';
+import {Couch, PH} from './couch.js';
+import {DoseEngine, ENERGIES} from './dose.js';
+import {buildRoom} from './room.js';
+
+export const ISO = new THREE.Vector3(-0.075, 0.733, 0);
+export const FLOOR_Y = ISO.y - 1.30;       // isocentre height above floor ~1.30 m (as on commercial machines)
+export const CEIL_Y = FLOOR_Y + 3.35;
+
+const A = (min, max, speed, unit = '°') => ({min, max, speed, unit, val: 0, tgt: 0, blocked: false});
+const BASE = import.meta.env.BASE_URL + 'assets/linac/';
+// [file, group, material factory, tap id (data.js Modelname)]
+const PARTS = [
+  ['01_Oil_Tank', 'stand', () => M.paintGrey(), '02_Klystron_Inside'],
+  ['02_Klystron_Outside', 'stand', () => M.paintTeal(), '02_Klystron_Inside'],
+  ['02_Klystron_Inside', 'stand', () => M.copper(), '02_Klystron_Inside'],
+  ['03_Cooling_system', 'stand', () => M.steelBrushed(), '03_Cooling_system'],
+  ['04_Circulator', 'stand', () => M.brass(), '04_Circulator'],
+  ['05_Electro_Gun', 'gantry', () => M.steel(), '05_Electro_Gun_Split'],
+  ['05_Electro_Gun_Split', 'gantry', () => M.steel(), '05_Electro_Gun_Split', true],
+  ['06_Waveguide', 'gantry', () => M.brass(), '06_Waveguide_Split'],
+  ['06_Waveguide_Split', 'gantry', () => M.brass(), '06_Waveguide_Split', true],
+  ['07_Bending_Magnet', 'gantry', () => M.copper(), '07_Bending_Magnet'],
+  ['08_Target', 'head', () => M.brass(), '08_Target'],
+  ['09_Primary_Collimator', 'head', () => M.tungsten(), '09_Primary_Collimator'],
+  ['10_Secondary_Collimator', 'head', () => M.lead(), '10_Secondary_Collimator'],
+  ['11_Flatening_Filter', 'head', () => M.steelBrushed(), '11_Flatening_Filter'],
+  ['15_KV_Imagine_System', 'kv', () => M.paintWhite(), '15_KV_Imagine_System'],
+];
+
+export async function createLinac(stage) {
+  const T = THREE;
+  const world = new T.Group(); world.position.y = -FLOOR_Y; world.name = 'linacWorld';
+  const ap = new Aperture(), dose = new DoseEngine();
+  const registry = new Map();           // tap id -> [meshes]
+  const register = (id, obj) => { obj.traverse((o) => { if (o.isMesh) { o.userData.part = id; if (!registry.has(id)) registry.set(id, []); registry.get(id).push(o); } }); };
+
+  const room = buildRoom({iso: ISO, floorY: FLOOR_Y, ceilY: CEIL_Y});
+  world.add(room.group);
+
+  const stand = new T.Group(), gantryPivot = new T.Group(), gantryInner = new T.Group(), collPivot = new T.Group(), collInner = new T.Group();
+  gantryPivot.position.set(0, ISO.y, 0); gantryInner.position.set(0, -ISO.y, 0);
+  collPivot.position.set(ISO.x, 0, 0); collInner.position.set(-ISO.x, 0, 0);
+  world.add(stand, gantryPivot); gantryPivot.add(gantryInner); gantryInner.add(collPivot); collPivot.add(collInner);
+  const headStatic = new T.Group(); gantryInner.add(headStatic);
+
+  // ---------- GLB internals ----------
+  const groups = {stand, gantry: gantryInner, head: headStatic, kv: gantryInner};
+  const dropStand = new T.Vector3(0, FLOOR_Y - 0.1, 0);       // model floor was at y=0.1; lower stand internals onto the real floor
+  const cutaway = [];                                           // *_Split meshes
+  await Promise.all(PARTS.map(async ([file, grp, mat, id, hidden]) => {
+    const o = await stage.loadGLB(BASE + file + '.glb');
+    skin(o, mat()); register(id, o); o.name = file;
+    if (grp === 'stand' && file !== '04_Circulator') o.position.add(dropStand);
+    if (hidden) { o.visible = false; cutaway.push(o); }
+    if (file === '15_KV_Imagine_System') { o.userData.kv = true; }
+    groups[grp].add(o);
+  }));
+  const gunSolid = gantryInner.getObjectByName('05_Electro_Gun'), wgSolid = gantryInner.getObjectByName('06_Waveguide');
+  const kv = gantryInner.getObjectByName('15_KV_Imagine_System');
+
+  // ---------- MV portal imager (EPID): retractable arm from the gantry drum, 43 x 43 cm panel 50 cm below the isocentre (SID 150 cm) ----------
+  const mv = new T.Group(); mv.name = 'MV_Portal_Imager'; gantryInner.add(mv);
+  const MV_DROP = 0.50, MV_LEN = 1.10;
+  const mvWhite = M.paintWhite(), mvTeal = M.paintTeal();
+  { const body = new T.Group(); mv.add(body);
+    const arm = new T.Mesh(new RoundedBoxGeometry(MV_LEN, 0.07, 0.16, 3, 0.02), mvWhite); arm.position.set(ISO.x + MV_LEN / 2 - 0.15, ISO.y - MV_DROP - 0.075, 0); arm.castShadow = true; body.add(arm);
+    const housing = new T.Mesh(new RoundedBoxGeometry(0.52, 0.045, 0.52, 3, 0.015), mvWhite); housing.position.set(ISO.x, ISO.y - MV_DROP - 0.035, 0); housing.castShadow = true; body.add(housing);
+    const face = new T.Mesh(new T.PlaneGeometry(0.43, 0.43).rotateX(-Math.PI / 2), M.plasticDark()); face.position.set(ISO.x, ISO.y - MV_DROP - 0.011, 0); body.add(face);
+    const strip = new T.Mesh(new RoundedBoxGeometry(0.30, 0.004, 0.012, 1, 0.002), mvTeal); strip.position.set(ISO.x, ISO.y - MV_DROP - 0.0115, 0.235); body.add(strip);
+    mv.userData.body = body; register('MV_Portal_Imager', mv); }
+  mv.position.x = MV_LEN + 0.1; mv.visible = false;
+
+  // ---------- procedural covers ----------
+  const coverMat = M.paintWhite(); coverMat.side = T.FrontSide;
+  const accent = M.paintTeal();
+  const covers = [];
+  const cov = (geo, x, y, z, parent, mat = coverMat) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); covers.push(m); m.userData.part = '02_Klystron_Inside'; return m; };
+  const standTop = 2.02;
+  cov(new RoundedBoxGeometry(0.55, standTop - FLOOR_Y, 0.86, 6, 0.09), 1.525, (FLOOR_Y + standTop) / 2, 0, stand);
+  cov(new RoundedBoxGeometry(0.57, 0.12, 0.9, 4, 0.03), 1.525, FLOOR_Y + 0.06, 0, stand, M.plasticDark());
+  // rotating drum (round gantry face) with an off-centre badge so rotation is visible
+  const drum = new T.Mesh(new T.CylinderGeometry(0.86, 0.86, 0.26, 96), coverMat); drum.rotation.z = Math.PI / 2; drum.position.set(1.12, ISO.y, 0); drum.castShadow = drum.receiveShadow = true; gantryInner.add(drum); covers.push(drum); drum.userData.part = '02_Klystron_Inside';
+  const rim = new T.Mesh(new T.TorusGeometry(0.855, 0.012, 12, 128), M.steelBrushed()); rim.rotation.y = Math.PI / 2; rim.position.set(0.995, ISO.y, 0); gantryInner.add(rim);
+  const badge = new T.Mesh(new RoundedBoxGeometry(0.014, 0.32, 0.09, 2, 0.006), accent); badge.position.set(0.985, ISO.y + 0.55, 0); badge.castShadow = true; gantryInner.add(badge); covers.push(badge);
+  for (let i = 0; i < 3; i++) { const t = (i / 3) * Math.PI * 2 + 0.4; const b = new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.012, 24), M.plasticDark()); b.rotation.z = Math.PI / 2; b.position.set(0.985, ISO.y + Math.cos(t) * 0.66, Math.sin(t) * 0.66); gantryInner.add(b); }
+  // arm + head housing
+  cov(new RoundedBoxGeometry(1.0, 0.56, 0.62, 6, 0.1), 0.76, 1.71, 0, gantryInner);
+  cov(new RoundedBoxGeometry(0.74, 0.50, 0.74, 6, 0.1), -0.065, 1.75, 0, gantryInner);
+  // snout with a 0.30 x 0.30 m beam window
+  const sh = new T.Shape(); const ow = 0.27, od = 0.29, w = 0.16; // outer half sizes
+  sh.moveTo(-ow, -od); sh.lineTo(ow, -od); sh.lineTo(ow, od); sh.lineTo(-ow, od); sh.closePath();
+  const hole = new T.Path(); hole.moveTo(-w, -w); hole.lineTo(-w, w); hole.lineTo(w, w); hole.lineTo(w, -w); hole.closePath(); sh.holes.push(hole);
+  const snoutGeo = new T.ExtrudeGeometry(sh, {depth: 0.24, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.025, bevelSegments: 4}); snoutGeo.rotateX(-Math.PI / 2);
+  const snout = cov(snoutGeo, -0.065, 1.285, 0, gantryInner); // origin: x centred at iso axis (-0.075 ~ -0.065)
+  snout.position.x = ISO.x;
+  const stripe = new T.Mesh(new T.BoxGeometry(0.76, 0.03, 0.02), accent); stripe.position.set(-0.065, 1.50, 0.372); gantryInner.add(stripe); const stripe2 = stripe.clone(); stripe2.position.z = -0.372; gantryInner.add(stripe2);
+  // static rf plumbing: circulator -> klystron, rotary joint, rotating feed to gun
+  const pipeMat = M.brass();
+  const pipe = (len, r, x, y, z, axis = 'y', parent = world) => { const m = new T.Mesh(new T.CylinderGeometry(r, r, len, 20), pipeMat); m.position.set(x, y, z); if (axis === 'x') m.rotation.z = Math.PI / 2; if (axis === 'z') m.rotation.x = Math.PI / 2; m.castShadow = true; parent.add(m); return m; };
+  const kTop = 1.0145 + dropStand.y;
+  pipe(1.62 - kTop, 0.03, 1.40, (1.62 + kTop) / 2, -0.0, 'y', stand);
+  pipe(0.26, 0.05, 1.12, ISO.y, 0, 'x', gantryInner);
+  const feedH = 1.77 - ISO.y; pipe(feedH, 0.028, 1.12, ISO.y + feedH / 2, 0, 'y', gantryInner);
+  pipe(1.12 - 1.076, 0.028, 1.098, 1.77, 0, 'x', gantryInner);
+  pipe(1.62 - ISO.y, 0.03, 1.40, ISO.y + (1.62 - ISO.y) / 2, -0.0, 'y', stand).visible = false;
+  for (const m of [...stand.children]) if (m.geometry && m.geometry.type === 'CylinderGeometry') register('04_Circulator', m);
+  gantryInner.traverse((m) => { if (m.isMesh && m.geometry.type === 'CylinderGeometry' && m.material === pipeMat) register('06_Waveguide_Split', m); });
+
+  // ---------- collimation head (jaws + MLC + light field + beam) ----------
+  const head = new Head(ap, {isoX: ISO.x, isoY: ISO.y});
+  collInner.add(head.group);
+  register('14_MLC', head.leaves); register('12_X_Jaws', head.jawX1.mesh); register('12_X_Jaws', head.jawX2.mesh); register('13_Y_Jaws', head.jawY1.mesh); register('13_Y_Jaws', head.jawY2.mesh);
+
+  // ---------- couch ----------
+  const couch = new Couch({isoX: ISO.x, isoY: ISO.y, floorY: FLOOR_Y}); couch.frame = world;
+  world.add(couch.root, couch.lasers);
+  register('01_Bed', couch.root);
+  const phCenter = new T.Object3D(); phCenter.position.y = PH.size / 2; couch.phantom.add(phCenter);
+
+  // ---------- dose slice plane ----------
+  const SL = 160, doseCanvas = document.createElement('canvas'); doseCanvas.width = doseCanvas.height = SL;
+  const doseTex = new T.CanvasTexture(doseCanvas); doseTex.colorSpace = T.SRGBColorSpace;
+  const slice = new T.Mesh(new T.PlaneGeometry(0.62, 0.62), new T.MeshBasicMaterial({map: doseTex, transparent: true, side: T.DoubleSide, depthWrite: false, toneMapped: false}));
+  slice.rotation.y = Math.PI / 2; slice.position.set(ISO.x, ISO.y - 0.05, 0); slice.renderOrder = 4; slice.visible = false; world.add(slice);
+
+  // ---------- state ----------
+  const axes = {
+    gantry: A(-180, 180, 6), coll: A(-175, 175, 6), couchRot: A(-95, 95, 3),
+    couchLat: A(-0.25, 0.25, 0.03, ' m'), couchLng: A(0, 0.95, 0.04, ' m'), couchVrt: A(FLOOR_Y + 0.25, ISO.y + 0.12, 0.02, ' m'),
+  };
+  axes.couchVrt.val = axes.couchVrt.tgt = ISO.y - 0.20;
+  const S = {
+    timeScale: 4, energy: 6, fff: false, mu: 100, delivered: 0, beamOn: false, doorOpen: true, fieldLight: true, lasers: true,
+    beamVis: true, doseView: false, slicePlane: 'axial', coverOpacity: 1, kvOut: 0, kvTarget: 0, mvOut: 0, mvTarget: 0, status: 'READY', alerts: [], dirty: true,
+    interlock: true, clearance: 0.04, selected: null,
+  };
+
+  // --- collision geometry ---
+  const headBox = new T.Box3(new T.Vector3(-0.44, 1.285, -0.40), new T.Vector3(0.31, 2.03, 0.40));
+  const armBox = new T.Box3(new T.Vector3(0.25, 1.43, -0.31), new T.Vector3(1.25, 1.99, 0.31));
+  const kvVerts = []; kv.updateMatrixWorld(true);
+  { const inv = gantryInner.matrixWorld.clone().invert(); const v = new T.Vector3();
+    kv.traverse((m) => { if (m.isMesh) { const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i += 2) { v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld).applyMatrix4(inv); kvVerts.push(v.clone()); } } }); }
+  const mvPts = []; { const y0 = ISO.y - MV_DROP - 0.06, y1 = ISO.y - MV_DROP;
+    for (let ix = -1; ix <= 1; ix += 0.5) for (let iz = -1; iz <= 1; iz += 0.5) for (const y of [y0, y1]) mvPts.push(new T.Vector3(ISO.x + ix * 0.26, y, iz * 0.26));
+    for (let x = ISO.x; x <= ISO.x + MV_LEN - 0.15; x += 0.1) for (const z of [-0.08, 0.08]) mvPts.push(new T.Vector3(x, y0 - 0.03, z)); }
+  const samplePts = (() => { // points on the rounded-box hulls of the head and arm covers (corner radius 0.1 m, as modelled)
+    const pts = [], R = 0.1;
+    const addRounded = (x0, x1, zh, y0, y1, nx = 7) => {
+      const prof = [], cz = zh - R, cy0 = y0 + R, cy1 = y1 - R;
+      const arc = (cz_, cy_, a0) => { for (let k = 0; k <= 4; k++) { const a = a0 + (k / 4) * (Math.PI / 2); prof.push([cz_ + R * Math.cos(a), cy_ + R * Math.sin(a)]); } };
+      arc(cz, cy1, 0); arc(-cz, cy1, Math.PI / 2); arc(-cz, cy0, Math.PI); arc(cz, cy0, 1.5 * Math.PI);
+      for (let i = 0; i <= nx; i++) { const x = x0 + ((x1 - x0) * i) / nx; for (const [z, y] of prof) pts.push(new T.Vector3(x, y, z)); }
+      for (const x of [x0, x1]) for (let a = -zh; a <= zh; a += zh / 3) for (let b = y0; b <= y1; b += (y1 - y0) / 4) pts.push(new T.Vector3(x, b, a));   // end faces (inner points)
+    };
+    addRounded(headBox.min.x, headBox.max.x, 0.37, headBox.min.y, 2.0); addRounded(armBox.min.x, armBox.max.x, armBox.max.z, armBox.min.y, armBox.max.y, 5);
+    return pts; })();
+  const tmpM = new T.Matrix4(), tmpV = new T.Vector3();
+  function collision() {
+    world.updateMatrixWorld(true);
+    tmpM.copy(couch.root.matrixWorld).invert().multiply(gantryInner.matrixWorld);   // gantryInner-local -> couch-root-local
+    const b = couch.boxes(), c = S.clearance; const tb = b.top.clone().expandByScalar(c), pb = b.phantom.clone().expandByScalar(c);
+    const worldMat = new T.Matrix4().multiplyMatrices(world.matrixWorld.clone().invert(), gantryInner.matrixWorld); // gantryInner-local -> world(model) coordinates
+    for (const p of samplePts) {
+      tmpV.copy(p).applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor';
+      tmpV.copy(p).applyMatrix4(tmpM); if (tb.containsPoint(tmpV) || pb.containsPoint(tmpV)) return 'couch / phantom';
+    }
+    if (S.kvOut > 0.5) for (const p of kvVerts) {
+      tmpV.copy(p); tmpV.z *= S.kvOut; tmpV.applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor (kV arm)';
+      tmpV.copy(p); tmpV.z *= S.kvOut; tmpV.applyMatrix4(tmpM); if (tb.containsPoint(tmpV) || pb.containsPoint(tmpV)) return 'couch / phantom (kV arm)';
+    }
+    if (S.mvOut > 0.5) for (const p of mvPts) {
+      tmpV.copy(p); tmpV.x += mv.position.x; tmpV.applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor (MV imager)';
+      tmpV.copy(p); tmpV.x += mv.position.x; tmpV.applyMatrix4(tmpM); if (tb.containsPoint(tmpV) || pb.containsPoint(tmpV)) return 'couch / phantom (MV imager)';
+    }
+    return null;
+  }
+
+  function applyAxes() {
+    gantryPivot.rotation.x = T.MathUtils.degToRad(axes.gantry.val);
+    collPivot.rotation.y = T.MathUtils.degToRad(axes.coll.val);
+    couch.state.rot = axes.couchRot.val; couch.state.lat = axes.couchLat.val; couch.state.lng = axes.couchLng.val; couch.state.H = axes.couchVrt.val;
+    couch.apply();
+  }
+  applyAxes();
+
+  const cbs = {change: [], collision: []};
+  let lastDoseUpdate = 0, lastSig = '';
+  function update(dt) {
+    const ts = S.timeScale; let moving = false; let hit = null;
+    for (const [name, a] of Object.entries(axes)) {
+      const d = a.tgt - a.val; if (Math.abs(d) < 1e-6) { a.blocked = false; continue; }
+      const wasHit = S.interlock ? collision() : null;
+      const prev = a.val; a.val += Math.sign(d) * Math.min(Math.abs(d), a.speed * ts * dt); applyAxes();
+      if (S.interlock) { const c = collision(); if (c && !wasHit) { a.val = prev; applyAxes(); a.blocked = true; hit = {axis: name, what: c}; a.tgt = prev; } else a.blocked = false; }
+      moving = true;
+    }
+    if (hit) { S.status = 'INTERLOCK'; cbs.collision.forEach((f) => f(hit)); }
+    // kV arm motion
+    const dk = S.kvTarget - S.kvOut; if (Math.abs(dk) > 1e-3) { S.kvOut += Math.sign(dk) * Math.min(Math.abs(dk), 0.5 * ts * dt); moving = true; } else S.kvOut = S.kvTarget;
+    kv.scale.z = Math.max(0.06, S.kvOut); kv.visible = S.kvOut > 0.07;
+    const dm = S.mvTarget - S.mvOut; if (Math.abs(dm) > 1e-3) { S.mvOut += Math.sign(dm) * Math.min(Math.abs(dm), 0.5 * ts * dt); moving = true; } else S.mvOut = S.mvTarget;
+    mv.position.x = (1 - S.mvOut) * (MV_LEN + 0.1); mv.visible = S.mvOut > 0.07;
+    // beam on: deliver MU
+    if (S.beamOn) {
+      const e = ENERGIES[S.energy], rate = (S.fff ? e.fffRate : e.rate) / 60;  // MU/s
+      S.delivered = Math.min(S.mu, S.delivered + rate * dt * Math.max(1, ts / 2));
+      if (S.delivered >= S.mu) { S.beamOn = false; S.status = 'BEAM OFF'; room.setBeamOn(false); }
+    }
+    // visuals tied to state
+    const tr = S.coverOpacity < 0.999;
+    if (coverMat.transparent !== tr) { coverMat.transparent = accent.transparent = tr; coverMat.needsUpdate = accent.needsUpdate = true; }
+    coverMat.opacity = accent.opacity = S.coverOpacity; coverMat.depthWrite = S.coverOpacity > 0.6;
+    for (const m of covers) m.visible = S.coverOpacity > 0.01 || m.userData.keep;
+    for (const c of covers) c.castShadow = S.coverOpacity > 0.5;
+    world.updateMatrixWorld(true);
+    const yAxis = new T.Vector3(1, 0, 0).transformDirection(collInner.matrixWorld); // IEC-Y (world +x at coll 0)
+    head.update(yAxis);
+    head.setBeam({visible: S.beamVis && (S.beamOn || S.beamPreview), intensity: S.beamOn ? 1 : 0.55});
+    head.setFieldLight(S.fieldLight && !S.beamOn);
+    couch.updateLasers(S.lasers);
+    room.wallLasers.visible = S.lasers;
+    // dose slice refresh (throttled)
+    slice.visible = S.doseView;
+    const sig = [axes.gantry.val.toFixed(1), axes.coll.val.toFixed(1), axes.couchRot.val.toFixed(1), axes.couchLat.val.toFixed(3), axes.couchLng.val.toFixed(3), axes.couchVrt.val.toFixed(3), ap.version, S.energy, S.fff, S.slicePlane, S.doseView].join('|');
+    const now = performance.now();
+    if (S.doseView && sig !== lastSig && now - lastDoseUpdate > (stage.mobile ? 260 : 120)) { renderDose(); lastSig = sig; lastDoseUpdate = now; }
+    cbs.change.forEach((f) => f(moving));
+  }
+
+  const ctx = {headInv: new T.Matrix4(), phInv: new T.Matrix4(), half: new T.Vector3(PH.size / 2, PH.size / 2, PH.size / 2), srcHead: head.src.clone(), srcPh: new T.Vector3()};
+  function prepareCtx() {
+    world.updateMatrixWorld(true);
+    ctx.headInv.copy(head.group.matrixWorld).invert(); ctx.phInv.copy(phCenter.matrixWorld).invert();
+    ctx.srcPh.copy(head.src).applyMatrix4(head.group.matrixWorld).applyMatrix4(ctx.phInv);
+    dose.update(ap); dose.E = S.energy; dose.fff = S.fff;
+    return ctx;
+  }
+  function renderDose() {
+    prepareCtx();
+    if (S.slicePlane === 'sagittal') slice.rotation.set(0, 0, 0); else slice.rotation.set(0, Math.PI / 2, 0);
+    slice.position.set(ISO.x, ISO.y - 0.05, 0); slice.updateMatrixWorld(true);
+    const g = doseCanvas.getContext('2d'), img = g.createImageData(SL, SL), P = new T.Vector3(), out = {}, band = new Int16Array(SL * SL).fill(-1);
+    for (let j = 0; j < SL; j++) for (let i = 0; i < SL; i++) {
+      P.set((i / (SL - 1) - 0.5) * 0.62, (0.5 - j / (SL - 1)) * 0.62, 0).applyMatrix4(slice.matrixWorld);
+      const v = dose.point(ctx, P, out), o = (j * SL + i) * 4;
+      if (v < 0) continue;
+      const [r, gg, b] = doseColorFast(v); img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = v < 0.02 ? 40 : 175;
+      band[j * SL + i] = Math.floor(v * 10);
+    }
+    for (let j = 0; j < SL - 1; j++) for (let i = 0; i < SL - 1; i++) {   // 10 % isodose lines
+      const b0 = band[j * SL + i]; if (b0 < 0) continue; const br = band[j * SL + i + 1], bd = band[(j + 1) * SL + i];
+      if ((br >= 0 && br !== b0) || (bd >= 0 && bd !== b0)) { const o = (j * SL + i) * 4; img.data[o] = img.data[o + 1] = img.data[o + 2] = 255; img.data[o + 3] = 235; }
+    }
+    g.putImageData(img, 0, 0); doseTex.needsUpdate = true;
+  }
+  const doseColorFast = (v) => { const t = Math.max(0, Math.min(1.1, v)); const stops = [[0, [20, 20, 90]], [0.1, [30, 60, 200]], [0.3, [20, 170, 210]], [0.5, [40, 190, 90]], [0.7, [190, 220, 40]], [0.9, [250, 160, 30]], [1.0, [235, 60, 40]], [1.1, [150, 20, 90]]]; for (let i = 1; i < stops.length; i++) if (t <= stops[i][0]) { const [a, ca] = stops[i - 1], [b, cb] = stops[i], u = (t - a) / (b - a); return ca.map((c, k) => c + (cb[k] - c) * u); } return stops[7][1]; };
+  /** Central-axis geometry for the current set-up: SSD, depth of isocentre, entry point. */
+  function caxInfo() {
+    prepareCtx();
+    const iso = new T.Vector3(ISO.x, ISO.y, 0).applyMatrix4(world.matrixWorld);
+    const isoPh = iso.clone().applyMatrix4(ctx.phInv), S0 = ctx.srcPh, d = isoPh.clone().sub(S0), h = ctx.half;
+    let t0 = 0, t1 = 1e9;
+    for (const ax of ['x', 'y', 'z']) { const dv = d[ax]; if (Math.abs(dv) < 1e-9) { if (Math.abs(S0[ax]) > h[ax]) return {hit: false}; continue; } const a = (-h[ax] - S0[ax]) / dv, b = (h[ax] - S0[ax]) / dv; t0 = Math.max(t0, Math.min(a, b)); t1 = Math.min(t1, Math.max(a, b)); }
+    if (t0 > t1 || t1 < 0) return {hit: false};
+    const len = d.length(); return {hit: true, ssd: t0 * len * 100, isoDepth: (1 - t0) * len * 100, exitDepth: (t1 - t0) * len * 100, tIso: 1 - t0};
+  }
+
+  function selectPart(id) {
+    S.selected = id;
+    const isCover = (m) => covers.includes(m);
+    for (const [pid, meshes] of registry) for (const m of meshes) {
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const mt of mats) {
+        if (!mt || !('emissive' in mt)) continue;
+        if (!mt.userData._orig) mt.userData._orig = {t: mt.transparent, o: mt.opacity, e: mt.emissive.clone(), ei: mt.emissiveIntensity, dw: mt.depthWrite};
+        const o = mt.userData._orig, on = id && pid === id;
+        mt.emissive.copy(on ? new T.Color(0x1a8f9c) : o.e); mt.emissiveIntensity = on ? 0.55 : o.ei;
+        const tr = id ? (!on || o.t) : o.t; if (mt.transparent !== tr) { mt.transparent = tr; mt.needsUpdate = true; } mt.opacity = id && !on ? 0.22 : o.o; mt.depthWrite = id && !on ? false : o.dw;
+      }
+    }
+    if (id) { S.coverOpacity = Math.min(S.coverOpacity, 0.0); cbs.change.forEach((f) => f(false)); }
+  }
+  function setCutaway(on) { cutaway.forEach((o) => (o.visible = on)); gunSolid.visible = !on; wgSolid.visible = !on; }
+
+  return {
+    world, axes, S, ap, dose, head, couch, room, registry, covers, ctx, phCenter, slice, kv, mv, stand, gantryInner, collInner,
+    update, collision, caxInfo, prepareCtx, selectPart, setCutaway, renderDose,
+    on: (ev, f) => cbs[ev].push(f),
+    marks: () => couch.marks(),
+    isoWorldModel: () => new T.Vector3(ISO.x, ISO.y, 0),
+    recenter: () => ({target: new T.Vector3(ISO.x + 0.35, 0.8, 0), cam: new T.Vector3(-3.5, 2.1, 4.1)}),
+  };
+}
