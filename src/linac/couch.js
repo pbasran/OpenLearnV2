@@ -13,8 +13,11 @@ export class Couch {
     const add = (geo, mat, x, y, z, parent = this.root) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
     // pedestal
     add(new RoundedBoxGeometry(0.95, 0.13, 0.75, 3, 0.03), grey, -1.72, floorY + 0.065, 0);
-    add(new RoundedBoxGeometry(0.5, 0.6, 0.42, 4, 0.04), shell, -1.72, floorY + 0.43, 0);
-    this.inner = add(new THREE.BoxGeometry(0.4, 1, 0.34), M.steelBrushed(), -1.72, floorY + 0.8, 0);
+    // accordion (bellows) lift column: pleats stack between the base and the carriage, compress flat when the couch is lowered and open up when it rises
+    this.pleats = []; { const pg = new RoundedBoxGeometry(1, 1, 1, 2, 0.12), dark = M.rubber(), ribbed = M.paintGrey();
+      for (let k = 0; k < 14; k++) { const m = new THREE.Mesh(pg, k % 2 ? dark : ribbed); m.castShadow = m.receiveShadow = true; m.userData.k = k; m.position.set(-1.72, floorY + 0.2, 0); this.root.add(m); this.pleats.push(m); } }
+    this.baseTop = floorY + 0.13;
+    add(new RoundedBoxGeometry(0.56, 0.04, 0.48, 3, 0.012), M.steelBrushed(), -1.72, floorY + 0.15, 0);   // fixed collar the bellows sits on
     this.carriage = add(new RoundedBoxGeometry(1.05, 0.15, 0.5, 4, 0.04), shell, -1.55, 0, 0);
     // sliding top
     this.top = new THREE.Group(); this.root.add(this.top);
@@ -55,8 +58,8 @@ export class Couch {
     this.bb.position.set(this.bbErr.x, S - 0.10 + this.bbErr.y, this.bbErr.z);
     const yu = s.H - 0.05;
     this.carriage.position.y = yu - 0.075;
-    const bot = this.floorY + 0.5, topY = yu - 0.15, len = Math.max(0.02, topY - bot);
-    this.inner.scale.y = len; this.inner.position.y = bot + len / 2;
+    const bot = this.baseTop + 0.04, topY = yu - 0.15, len = Math.max(0.01, topY - bot), N = this.pleats.length, ph = len / N;
+    this.pleats.forEach((m, k) => { const wide = k % 2 === 0; m.scale.set(wide ? 0.5 : 0.42, Math.max(0.004, ph * 1.15), wide ? 0.42 : 0.35); m.position.y = bot + (k + 0.5) * ph; });
   }
   set(k, v) { this.state[k] = v; this.apply(); }
   /** Couch-frame boxes used for collision checks (couch-root local coordinates). */

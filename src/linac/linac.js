@@ -163,7 +163,7 @@ export async function createLinac(stage) {
   // ---------- state ----------
   const axes = {
     gantry: A(-180, 180, 6), coll: A(-175, 175, 6), couchRot: A(-95, 95, 3),
-    couchLat: A(-0.25, 0.25, 0.03, ' m'), couchLng: A(-0.8, 0.95, 0.04, ' m'), couchVrt: A(FLOOR_Y + 0.25, ISO.y + 0.12, 0.02, ' m'),
+    couchLat: A(-0.25, 0.25, 0.03, ' m'), couchLng: A(-0.8, 0.95, 0.04, ' m'), couchVrt: A(FLOOR_Y + 0.35, ISO.y + 0.12, 0.02, ' m'),
   };
   axes.couchVrt.val = axes.couchVrt.tgt = ISO.y - 0.20;
   const S = {
