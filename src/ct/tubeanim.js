@@ -17,9 +17,10 @@ export function createTubeAnim(rotor, {xs, rf, rd, ha}) {
   const track = new T.Mesh(new T.TorusGeometry(TR, 0.0045, 8, 64).rotateY(Math.PI / 2), mat(0xff8a3d)); track.position.x = -0.0085; track.renderOrder = 20; spin.add(track);
   for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2, m = new T.Mesh(new T.BoxGeometry(0.002, 0.034, 0.006), mat(k === 0 ? 0xff4040 : 0x4b5560)); m.position.set(-0.0095, Math.cos(a) * 0.04, Math.sin(a) * 0.04); m.rotation.x = -a; m.renderOrder = 21; spin.add(m); }
   const stem = add(new T.Mesh(new T.CylinderGeometry(0.012, 0.012, 0.16, 12).rotateZ(Math.PI / 2), mat(0x8e98a4))); stem.position.set(xs + 0.1, cy, 0);
-  const fx = xs - 0.115, fy = rf + 0.03;
-  const cathode = add(new T.Mesh(new T.BoxGeometry(0.03, 0.02, 0.05), mat(0x59d0ff)), 20); cathode.position.set(fx, fy, 0);
-  const focal = new T.Vector3(xs - 0.0085, rf, 0), start = new T.Vector3(fx + 0.015, fy, 0);
+  const fx = xs - 0.115, fy = rf;                                              // cathode plate faces the anode face: electrons fly straight along +x, perpendicular to both
+  const cathode = add(new T.Mesh(new T.BoxGeometry(0.012, 0.034, 0.05), mat(0x59d0ff)), 20); cathode.position.set(fx, fy, 0);
+  const cup = add(new T.Mesh(new T.BoxGeometry(0.02, 0.006, 0.056), mat(0x3a8fb3)), 20); cup.position.set(fx + 0.004, fy + 0.02, 0); const cup2 = cup.clone(); cup2.position.y = fy - 0.02; g.add(cup2);
+  const focal = new T.Vector3(xs - 0.0085, rf, 0), start = new T.Vector3(fx + 0.008, fy, 0);
   // collimator: lead blades just below the tube window (z-blades shape the fan, x-blades set the slice width)
   const bladeMat = mat(0x6d7883), blades = [];
   const blade = (w, h, d) => add(new T.Mesh(new T.BoxGeometry(w, h, d), bladeMat), 21);
