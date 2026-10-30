@@ -22,11 +22,13 @@ npm run build      # static site in dist/ (relative paths; can be hosted in any 
 |---|---|---|
 | Visuals | flat-shaded GLBs | PBR paint / metal / glass / carbon, hospital-vault environment lighting, shadows, room with door, window, console |
 | Linac mechanics | free rotation | IEC-61217 axes with real relative speeds, travel limits, **collision interlocks** (head / arm / kV arms / MV imager vs. couch, phantom, floor), door interlock |
+| Linac look | — | ring-style gantry face (no dial), glossy head with no box round the collimator so the jaws and MLC leaves are visible, treatment console in a control room outside the bunker (viewing window; live status screens) |
 | Linac field | — | 60-pair MLC (0.5 / 1.0 cm leaves), 4 tungsten jaws with divergent faces, shaped **light field** that rotates with collimator & gantry, room lasers drawn on the phantom |
 | Linac physics | — | educational dose model: PDD, output factor, off-axis profile (flattened / FFF), SSD from real geometry, isodose slice in the phantom |
 | Linac workflow | — | time-out → laser set-up (2 mm) → image guidance (kV AP + lateral with couch shift; MV portal image of the field) → beam parameters (R&V) → beam-on with interlocks |
 | CT mechanics | — | rotating tube / detector, gantry tilt ±30°, table in / height with bore-clearance limits, external laser alignment, tube-heat limit, door & x-ray lamp interlocks |
 | CT imaging | — | analytic phantom → sinogram with photon noise → **filtered back-projection**; kVp, mAs, pitch, slice thickness, kernel and FOV change the image the way they do on a scanner; scout (topogram), range planning, CTDIvol / DLP, W/L, ROI tool |
+| CT table | — | flat indexed carbon-fibre couch top (numbered index positions, cm ruler) with its own Parts learning item; positioning lasers can be switched on/off |
 | CT workflow | — | time-out → laser positioning → scout → range & protocol → acquire (helical or axial) → review / measure → finish |
 
 ## Layout

@@ -34,6 +34,7 @@ export function buildCTPanels(stage, ct, ui) {
       for (const [t, d] of [['◀ 1 cm', -0.01], ['◀ 1 mm', -0.001], ['1 mm ▶', 0.001], ['1 cm ▶', 0.01]]) ui.button(nr, t, () => { ct.nudge(d); }, 'ghost');
       ui.note(g2, 'The phantom was set down off-centre. Slide it sideways until the top mark sits on the red sagittal laser.');
       const g3 = ui.group(p, 'Laser alignment');
+      refs.lasersT = ui.toggle(g3, {label: 'Positioning lasers ON', value: S.lasers, onChange: (v) => { S.lasers = v; ui.toast(v ? 'Lasers on' : 'Lasers off', 'ok'); }});
       refs.alAx = ui.readout(g3, 'Landmark ring vs axial laser'); refs.alSag = ui.readout(g3, 'Midline vs sagittal laser'); refs.alCor = ui.readout(g3, 'Mid-height vs coronal laser');
       ui.note(g3, 'Tolerance ±2 mm. Red laser lines are drawn where they cross the phantom and table. Raise or lower the table until the side marks sit on the horizontal laser.');
       const g4 = ui.group(p, 'Gantry');
@@ -43,7 +44,6 @@ export function buildCTPanels(stage, ct, ui) {
       ui.button(g4, 'See the rotating tube', () => { S.coverOpacity = 0.12; refs.cover.set(0.12); ct.flyTo(ct.presets.front.target, ct.presets.front.cam); }, 'ghost');
       const g5 = ui.group(p, 'Room & display');
       refs.door = ui.toggle(g5, {label: 'Scan-room door closed (interlock)', value: !S.doorOpen, onChange: (v) => { S.doorOpen = !v; }});
-      ui.toggle(g5, {label: 'Laser lines', value: true, onChange: (v) => { S.lasers = v; }});
       ui.toggle(g5, {label: 'Show x-ray fan (teaching aid)', value: true, onChange: (v) => { S.fan = v; }});
       ui.toggle(g5, {label: 'Collision interlocks', value: true, onChange: (v) => { S.interlock = v; }});
       ui.segmented(g5, {label: 'Time scale', options: [[1, '1×'], [2, '2×'], [5, '5×']], value: S.timeScale, onChange: (v) => { S.timeScale = +v; }});

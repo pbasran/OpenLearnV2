@@ -39,6 +39,7 @@ export function buildLinacPanels(stage, lin, ui) {
       axisSlider(g2, 'couchLat', 'Lateral', {min: -0.25, max: 0.25, step: 0.001, scale: 100, unit: ' cm', fmt: (v) => v.toFixed(1)});
       axisSlider(g2, 'couchLng', 'Longitudinal (out →)', {min: 0, max: 0.95, step: 0.001, scale: 100, unit: ' cm', fmt: (v) => v.toFixed(1)});
       axisSlider(g2, 'couchVrt', 'Vertical (couch top vs isocentre)', {min: axes.couchVrt.min, max: axes.couchVrt.max, step: 0.001, scale: 100, unit: ' cm', fmt: (v) => (v - ISO.y * 100).toFixed(1)});
+      ui.toggle(g2, {label: 'Room lasers ON', value: S.lasers, onChange: (v) => { S.lasers = v; ui.toast(v ? 'Lasers on' : 'Lasers off', 'ok'); }});
       ui.note(g2, 'The yellow/black ring on the floor marks the couch-swing safety zone.');
       const g3 = ui.group(p, 'Field shaping (at isocentre)');
       const apply = () => { ap.clamp(); ap.version++; };
@@ -64,7 +65,6 @@ export function buildLinacPanels(stage, lin, ui) {
       const g6 = ui.group(p, 'Display', false);
       ui.slider(g6, {label: 'Covers (solid ↔ x-ray)', min: 0, max: 1, step: 0.05, value: 1, fmt: (v) => Math.round(v * 100) + '%', onInput: (v) => { S.coverOpacity = v; if (v > 0.3 && S.selected) lin.selectPart(null); }});
       ui.toggle(g6, {label: 'Light field', value: true, onChange: (v) => { S.fieldLight = v; }});
-      ui.toggle(g6, {label: 'Room lasers', value: true, onChange: (v) => { S.lasers = v; }});
       ui.toggle(g6, {label: 'Show radiation beam (teaching aid)', value: true, onChange: (v) => { S.beamVis = v; S.beamPreview = false; }});
       ui.toggle(g6, {label: 'Preview beam when off', value: false, onChange: (v) => { S.beamPreview = v; }});
     }},

@@ -50,14 +50,13 @@ export class Head {
   /* ---------- MLC ---------- */
   _buildMLC() {
     const geo = new THREE.BoxGeometry(1, 1, 1);
-    this.leaves = new THREE.InstancedMesh(geo, M.steelDark(), N_PAIRS * 2); this.leaves.castShadow = true; this.leaves.receiveShadow = true; this.leaves.frustumCulled = false;
+    this.leaves = new THREE.InstancedMesh(geo, M.steelBrushed(), N_PAIRS * 2); this.leaves.castShadow = true; this.leaves.receiveShadow = true; this.leaves.frustumCulled = false;
     this.group.add(this.leaves);
     // carriage / guide plates
     const frame = M.paintGrey(), xr = this.isoX, yb = this.yMLC - this.hMLC / 2 - 0.004, yt = this.yMLC + this.hMLC / 2 + 0.004;
     const plate = (sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), frame); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; this.group.add(m); };
     const span = 40 * 0.01 * this.dMLC / 2 + 0.012;
-    plate(0.012, this.hMLC + 0.012, 0.34, xr - span, this.yMLC, 0); plate(0.012, this.hMLC + 0.012, 0.34, xr + span, this.yMLC, 0);
-    plate(span * 2 + 0.024, 0.01, 0.34, xr, yt + 0.002, 0);
+    // (no enclosing box: only two slim guide rails remain so every leaf stays visible)
     plate(span * 2 + 0.024, 0.008, 0.045, xr, yb, -0.19); plate(span * 2 + 0.024, 0.008, 0.045, xr, yb, 0.19);
   }
   _updateMLC() {

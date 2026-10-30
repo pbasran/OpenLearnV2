@@ -84,28 +84,21 @@ export async function createLinac(stage) {
   const standTop = 2.02;
   cov(new RoundedBoxGeometry(0.55, standTop - FLOOR_Y, 0.86, 6, 0.09), 1.525, (FLOOR_Y + standTop) / 2, 0, stand);
   cov(new RoundedBoxGeometry(0.57, 0.12, 0.9, 4, 0.03), 1.525, FLOOR_Y + 0.06, 0, stand, M.plasticDark());
-  // rotating drum (round gantry face) with an off-centre badge so rotation is visible
-  const drum = new T.Mesh(new T.CylinderGeometry(0.86, 0.86, 0.26, 96), coverMat); drum.rotation.z = Math.PI / 2; drum.position.set(1.12, ISO.y, 0); drum.castShadow = drum.receiveShadow = true; gantryInner.add(drum); covers.push(drum); drum.userData.part = '02_Klystron_Inside';
-  const rim = new T.Mesh(new T.TorusGeometry(0.855, 0.012, 12, 128), M.steelBrushed()); rim.rotation.y = Math.PI / 2; rim.position.set(0.995, ISO.y, 0); gantryInner.add(rim);
-  const badge = new T.Mesh(new RoundedBoxGeometry(0.014, 0.32, 0.09, 2, 0.006), accent); badge.position.set(0.985, ISO.y + 0.55, 0); badge.castShadow = true; gantryInner.add(badge); covers.push(badge);
-  for (let i = 0; i < 3; i++) { const t = (i / 3) * Math.PI * 2 + 0.4; const b = new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.012, 24), M.plasticDark()); b.rotation.z = Math.PI / 2; b.position.set(0.985, ISO.y + Math.cos(t) * 0.66, Math.sin(t) * 0.66); gantryInner.add(b); }
+  // rotating gantry body: smooth lathe-profile drum (rounded shoulders), flush teal ring - no dial, bolts or badge
+  const drumProf = []; { const R = 0.86, hw = 0.13, f = 0.07; drumProf.push(new T.Vector2(0, -hw)); drumProf.push(new T.Vector2(R - f, -hw)); for (let i = 0; i <= 10; i++) { const a = -Math.PI / 2 + (i / 10) * Math.PI / 2; drumProf.push(new T.Vector2(R - f + Math.cos(a) * f, -hw + f + Math.sin(a) * f)); } for (let i = 0; i <= 10; i++) { const a = (i / 10) * Math.PI / 2; drumProf.push(new T.Vector2(R - f + Math.cos(a) * f, hw - f + Math.sin(a) * f)); } drumProf.push(new T.Vector2(0.58, hw)); for (let i = 0; i <= 6; i++) { const a = (i / 6) * Math.PI / 2; drumProf.push(new T.Vector2(0.58 - Math.sin(a) * 0.05, hw - (1 - Math.cos(a)) * 0.05)); } drumProf.push(new T.Vector2(0.53, hw - 0.06)); drumProf.push(new T.Vector2(0, hw - 0.06)); }
+  const drum = new T.Mesh(new T.LatheGeometry(drumProf, 128), coverMat); drum.rotation.z = Math.PI / 2; drum.position.set(1.12, ISO.y, 0); drum.castShadow = drum.receiveShadow = true; gantryInner.add(drum); covers.push(drum); drum.userData.part = '02_Klystron_Inside';
+  const ring = new T.Mesh(new T.TorusGeometry(0.585, 0.007, 10, 160), accent); ring.rotation.y = Math.PI / 2; ring.position.set(0.992, ISO.y, 0); gantryInner.add(ring); covers.push(ring);
   // arm + head housing
-  cov(new RoundedBoxGeometry(1.0, 0.56, 0.62, 6, 0.1), 0.76, 1.71, 0, gantryInner);
-  cov(new RoundedBoxGeometry(0.74, 0.50, 0.74, 6, 0.1), -0.065, 1.75, 0, gantryInner);
-  // snout with a 0.30 x 0.30 m beam window
-  const sh = new T.Shape(); const ow = 0.27, od = 0.29, w = 0.16; // outer half sizes
-  sh.moveTo(-ow, -od); sh.lineTo(ow, -od); sh.lineTo(ow, od); sh.lineTo(-ow, od); sh.closePath();
-  const hole = new T.Path(); hole.moveTo(-w, -w); hole.lineTo(-w, w); hole.lineTo(w, w); hole.lineTo(w, -w); hole.closePath(); sh.holes.push(hole);
-  const snoutGeo = new T.ExtrudeGeometry(sh, {depth: 0.24, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.025, bevelSegments: 4}); snoutGeo.rotateX(-Math.PI / 2);
-  const snout = cov(snoutGeo, -0.065, 1.285, 0, gantryInner); // origin: x centred at iso axis (-0.075 ~ -0.065)
-  snout.position.x = ISO.x;
-  const stripe = new T.Mesh(new T.BoxGeometry(0.76, 0.03, 0.02), accent); stripe.position.set(-0.065, 1.50, 0.372); gantryInner.add(stripe); const stripe2 = stripe.clone(); stripe2.position.z = -0.372; gantryInner.add(stripe2);
+  cov(new RoundedBoxGeometry(1.0, 0.56, 0.62, 8, 0.22), 0.76, 1.71, 0, gantryInner);
+  cov(new RoundedBoxGeometry(0.74, 0.50, 0.74, 8, 0.21), -0.065, 1.75, 0, gantryInner);
+  // no snout / box around the collimator: the jaws and MLC leaves are left visible under the head
+  const stripe = new T.Mesh(new RoundedBoxGeometry(0.52, 0.022, 0.012, 2, 0.005), accent); stripe.position.set(-0.065, 1.74, 0.368); gantryInner.add(stripe); const stripe2 = stripe.clone(); stripe2.position.z = -0.368; gantryInner.add(stripe2);
   // static rf plumbing: circulator -> klystron, rotary joint, rotating feed to gun
   const pipeMat = M.brass();
   const pipe = (len, r, x, y, z, axis = 'y', parent = world) => { const m = new T.Mesh(new T.CylinderGeometry(r, r, len, 20), pipeMat); m.position.set(x, y, z); if (axis === 'x') m.rotation.z = Math.PI / 2; if (axis === 'z') m.rotation.x = Math.PI / 2; m.castShadow = true; parent.add(m); return m; };
   const kTop = 1.0145 + dropStand.y;
   pipe(1.62 - kTop, 0.03, 1.40, (1.62 + kTop) / 2, -0.0, 'y', stand);
-  pipe(0.26, 0.05, 1.12, ISO.y, 0, 'x', gantryInner);
+  pipe(0.12, 0.05, 1.17, ISO.y, 0, 'x', gantryInner);
   const feedH = 1.77 - ISO.y; pipe(feedH, 0.028, 1.12, ISO.y + feedH / 2, 0, 'y', gantryInner);
   pipe(1.12 - 1.076, 0.028, 1.098, 1.77, 0, 'x', gantryInner);
   pipe(1.62 - ISO.y, 0.03, 1.40, ISO.y + (1.62 - ISO.y) / 2, -0.0, 'y', stand).visible = false;
@@ -225,7 +218,7 @@ export async function createLinac(stage) {
     head.setBeam({visible: S.beamVis && (S.beamOn || S.beamPreview), intensity: S.beamOn ? 1 : 0.55});
     head.setFieldLight(S.fieldLight && !S.beamOn);
     couch.updateLasers(S.lasers);
-    room.wallLasers.visible = S.lasers;
+    room.wallLasers.visible = S.lasers; room.console.update(S, axes, S.energy);
     // dose slice refresh (throttled)
     slice.visible = S.doseView;
     const sig = [axes.gantry.val.toFixed(1), axes.coll.val.toFixed(1), axes.couchRot.val.toFixed(1), axes.couchLat.val.toFixed(3), axes.couchLng.val.toFixed(3), axes.couchVrt.val.toFixed(3), ap.version, S.energy, S.fff, S.slicePlane, S.doseView].join('|');

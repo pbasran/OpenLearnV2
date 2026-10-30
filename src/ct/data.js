@@ -69,41 +69,48 @@ const modelDescriptions =
 
   {
     'Index': '8',
+    'Modelname': 'couch_top_flat',
+    'Title': 'Flat Couch Top (Indexed)',
+    'Description': 'A <b>flat</b> carbon-fibre couch top is used for radiotherapy planning CT so the patient lies exactly as on the treatment machine. A curved diagnostic top would change the patient\'s shape and position.\n\n<b>Why carbon fibre?</b> It is strong, stiff and <b>low-attenuation</b> (radiolucent): it adds little to the image and causes few artefacts.\n\n<b>Index marks.</b> The numbered marks along both edges are <b>index positions</b> (every 5 cm; the number is printed every 10 cm). Positioning devices (headrests, knee rests, breast boards, immobilisation masks) lock into the index slots, and the <b>index number is recorded</b> so the set-up can be reproduced at the linac. The ruler down the centre is in cm from the head end of the top.\n\n<b>Lasers.</b> Align the patient\'s skin marks to the red lasers, then note the index and the table height. Try it: turn the lasers on, slide the phantom, and watch the laser line cross the index scale.\n\n<b>Quality checks.</b> The flat top must be level, and the table position read-out should agree with the scale (±1 mm).',
+  },
+
+  {
+    'Index': '9',
     'Modelname': 'control_console',
     'Title': 'Control Console',
     'Description': 'The control console is operated by the technologist to input scanning protocols, initiate scans, and review preliminary images. Protocol parameters affect dose, image resolution, and scan time.',
   },
 
   {
-    'Index': '9',
+    'Index': '10',
     'Modelname': 'image_reconstruction_computer',
     'Title': 'Image Reconstruction Computer',
     'Description': 'High-speed computers process raw projection data into cross-sectional images using mathematical algorithms such as filtered back-projection or iterative reconstruction. Processing speed and algorithm quality directly impact image clarity and diagnostic value.',
   },
 
   {
-    'Index': '10',
+    'Index': '11',
     'Modelname': 'control_room',
     'Title': 'Control Room',
     'Description': 'CT technologists operate the scanner from a shielded control room to protect from ionizing radiation, while maintaining visual and audio contact with the patient.',
   },
 
   {
-    'Index': '11',
+    'Index': '12',
     'Modelname': 'cooling_system',
     'Title': 'Cooling System',
     'Description': 'CT scanners generate significant heat during operation, primarily at the X-ray tube. Cooling systems (oil or liquid-based) dissipate heat, allowing rapid successive scans without damaging the tube.',
   },
 
   {
-    'Index': '12',
+    'Index': '13',
     'Modelname': 'laser_positioning_lights',
     'Title': 'Laser Positioning Lights',
     'Description': 'Laser alignment facilitates precise patient positioning for radiotherapy, which can be adjusted as needed during radiotherapy simulation.',
   },
 
   {
-    'Index': '13',
+    'Index': '14',
     'Modelname': 'safety_and_intercom_systems',
     'Title': 'Safety and Intercom Systems',
     'Description': 'These systems enable the operator to communicate with patients during scans, provide instructions, and intervene promptly if necessary.',

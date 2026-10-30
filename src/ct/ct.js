@@ -93,6 +93,7 @@ export async function createCT(stage) {
   }
 
   /* ---------------- table ---------------- */
+  let oldTop = null;
   const tableTop = new T.Group(), tableCol = new T.Group(), tableBase = new T.Group(); tableCol.position.y = 0.14; world.add(tableTop, tableCol, tableBase);
   {
     const o = await stage.loadGLB(BASE + 'patient_table.glb'); o.updateMatrixWorld(true);
@@ -102,12 +103,44 @@ export async function createCT(stage) {
       const key = [c.x, c.y, c.z, s.x, s.y, s.z, m.geometry.attributes.position.count].map((v) => v.toFixed(3)).join('|'); if (seen.has(key)) continue; seen.add(key);
       m.removeFromParent();
       let g = tableBase, mat = M.paintGrey();
-      if (c.y > 0.78) { g = tableTop; mat = s.x > 1.8 && s.y < 0.06 && c.y > 1.0 ? M.couchTop() : M.paintWhite(); }
+      if (c.y > 0.78) { g = tableTop; if (s.x > 1.8 && s.y < 0.06 && c.y > 1.0) { oldTop = m; m.visible = false; m.userData.oldTop = true; mat = M.couchTop(); } else mat = M.paintWhite(); }
       else if (c.y > 0.14 && c.y < 0.88 && s.y < 0.2 && s.x < 1.3) { g = tableCol; mat = M.plasticDark(); }
       m.matrix.copy(m.matrixWorld); m.matrix.decompose(m.position, m.quaternion, m.scale); m.updateMatrix();
       if (g === tableCol) { m.position.y -= 0.14; }
       m.material = mat; m.castShadow = m.receiveShadow = true; g.add(m); register('patient_table', m);
     }
+  }
+  // ---- flat, indexed carbon-fibre couch top (radiotherapy / diagnostic flat-top style) ----
+  const FT = {len: 2.48, wid: 0.46, th: 0.038, x0: -0.09, step: 0.05};
+  {
+    const topY = TOP_Y0;                                   // the phantom is built to rest on y = TOP_Y0 in this frame
+    const slab = new T.Mesh(new RoundedBoxGeometry(FT.len, FT.th, FT.wid, 4, 0.012), M.couchTop()); slab.position.set(FT.x0 + FT.len / 2, topY - FT.th / 2, 0); slab.castShadow = slab.receiveShadow = true; tableTop.add(slab);
+    // index scale: canvas drawn once, laid on the flat top (cm ticks, numbered index slots every 5 cm on both rails)
+    const W = 4096, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d'); g.clearRect(0, 0, W, H);
+    const pxm = W / FT.len;                                  // px per metre along the length
+    g.fillStyle = 'rgba(235,240,245,0.92)'; g.strokeStyle = 'rgba(235,240,245,0.92)'; g.font = 'bold 22px sans-serif'; g.textAlign = 'center';
+    const nSlots = Math.floor(FT.len / FT.step);
+    for (let k = 0; k <= nSlots; k++) {
+      const x = k * FT.step * pxm + 10; if (x > W - 10) break;
+      const major = k % 2 === 0;
+      for (const side of [0, 1]) {
+        const yEdge = side === 0 ? 20 : H - 20, dir = side === 0 ? 1 : -1;
+        g.lineWidth = major ? 4 : 2.5; g.beginPath(); g.moveTo(x, yEdge); g.lineTo(x, yEdge + dir * (major ? 40 : 24)); g.stroke();
+        if (major) { g.save(); g.translate(x, yEdge + dir * 66); g.fillText(String(k / 2 + 1).padStart(2, '0'), 0, 8); g.restore(); }
+      }
+    }
+    g.lineWidth = 3; g.beginPath(); g.moveTo(0, H / 2); g.lineTo(W, H / 2); g.stroke();                       // sagittal centre line
+    for (let cm = 0; cm * 0.01 < FT.len; cm += 10) { const x = cm * 0.01 * pxm + 10; g.lineWidth = cm % 50 === 0 ? 4 : 2; g.beginPath(); g.moveTo(x, H / 2 - (cm % 50 === 0 ? 26 : 14)); g.lineTo(x, H / 2 + (cm % 50 === 0 ? 26 : 14)); g.stroke(); if (cm % 50 === 0) g.fillText(String(cm), x, H / 2 - 36); }
+    const tx = new T.CanvasTexture(cv); tx.colorSpace = T.SRGBColorSpace; tx.anisotropy = 8;
+    const scale = new T.Mesh(new T.PlaneGeometry(FT.len, FT.wid).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({map: tx, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}));
+    scale.position.set(FT.x0 + FT.len / 2, topY + 0.0008, 0); scale.renderOrder = 3; tableTop.add(scale);
+    // index slots: small dark recesses in the edge rails at every numbered position
+    const slotGeo = new T.BoxGeometry(0.014, 0.004, 0.02), slots = new T.InstancedMesh(slotGeo, M.plasticDark(), (nSlots + 1) * 2); let n = 0, mm4 = new T.Matrix4();
+    for (let k = 0; k <= nSlots; k += 2) for (const sg of [-1, 1]) { mm4.makeTranslation(FT.x0 + 0.01 + k * FT.step, topY + 0.0006, sg * (FT.wid / 2 - 0.015)); slots.setMatrixAt(n++, mm4); }
+    slots.count = n; tableTop.add(slots);
+    const rail = new T.Mesh(new RoundedBoxGeometry(FT.len, 0.012, 0.014, 2, 0.005), M.steelBrushed());
+    for (const sg of [-1, 1]) { const r = rail.clone(); r.position.set(FT.x0 + FT.len / 2, topY - FT.th + 0.004, sg * (FT.wid / 2 - 0.002)); tableTop.add(r); register('couch_top_flat', r); }
+    register('couch_top_flat', slab); register('couch_top_flat', scale); register('couch_top_flat', slots);
   }
   const SEC_HALF_B = (sec) => sec.ell[0][3] / 100;                    // vertical semi-axis of the section body (m)
   /* ---------------- phantom ---------------- */
