@@ -1,6 +1,10 @@
 # OpenLearn v2 — realistic CT scanner & linear accelerator (WebXR)
 
-### Open the viewer: **https://pbasran.github.io/OpenLearnV2/**
+## [▶ Launch the viewer](https://pbasran.github.io/OpenLearnV2/)
+
+[![Launch viewer](https://img.shields.io/badge/Launch-OpenLearn%20v2%20viewer-1f6f78?style=for-the-badge)](https://pbasran.github.io/OpenLearnV2/)
+
+Direct links: [**Linear accelerator**](https://pbasran.github.io/OpenLearnV2/) · [**CT scanner**](https://pbasran.github.io/OpenLearnV2/?mode=ct)
 
 <img src="docs/OpenLearnV2_QR.png" alt="QR code to the OpenLearn v2 viewer" width="220">
 
