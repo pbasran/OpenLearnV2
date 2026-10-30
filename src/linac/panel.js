@@ -2,6 +2,7 @@
 import {modelDescriptions} from './data.js';
 import {ENERGIES, pddCAX, outputFactor, oar} from './dose.js';
 import {plot} from '../engine/plot.js';
+import * as THREE from 'three';
 import {ISO} from './linac.js';
 import {PH} from './couch.js';
 
@@ -21,8 +22,9 @@ export function buildLinacPanels(stage, lin, ui) {
   const refs = {};
   const sliders = {};
   const axisSlider = (parent, key, label, opts) => {
-    const a = axes[key], sc = opts.scale || 1;
-    const s = ui.slider(parent, {label, min: opts.min * sc, max: opts.max * sc, step: opts.step, value: a.tgt * sc, unit: opts.unit, fmt: opts.fmt, onInput: (v) => { a.tgt = v / sc; S.status = 'MOVING'; }});
+    const a = axes[key], sc = (opts.scale || 1) * (opts.invert ? -1 : 1);
+    const lo = Math.min(opts.min * sc, opts.max * sc), hi = Math.max(opts.min * sc, opts.max * sc);
+    const s = ui.slider(parent, {label, min: lo, max: hi, step: opts.step, value: a.tgt * sc, unit: opts.unit, fmt: opts.fmt, go: true, onInput: (v) => { a.tgt = v / sc; S.status = 'MOVING'; }});
     sliders[key] = {s, sc, a}; return s;
   };
   const syncSliders = () => { for (const {s, sc, a} of Object.values(sliders)) s.set(a.tgt * sc); };
@@ -37,9 +39,9 @@ export function buildLinacPanels(stage, lin, ui) {
       const g2 = ui.group(p, 'Couch');
       axisSlider(g2, 'couchRot', 'Couch rotation', {min: -95, max: 95, step: 0.5, unit: '°'});
       axisSlider(g2, 'couchLat', 'Lateral', {min: -0.25, max: 0.25, step: 0.001, scale: 100, unit: ' cm', fmt: (v) => v.toFixed(1)});
-      axisSlider(g2, 'couchLng', 'Longitudinal (out →)', {min: 0, max: 0.95, step: 0.001, scale: 100, unit: ' cm', fmt: (v) => v.toFixed(1)});
+      axisSlider(g2, 'couchLng', 'Longitudinal (+ = couch IN toward gantry)', {min: -0.8, max: 0.95, invert: true, step: 0.001, scale: 100, unit: ' cm', fmt: (v) => v.toFixed(1)});
       axisSlider(g2, 'couchVrt', 'Vertical (couch top vs isocentre)', {min: axes.couchVrt.min, max: axes.couchVrt.max, step: 0.001, scale: 100, unit: ' cm', fmt: (v) => (v - ISO.y * 100).toFixed(1)});
-      ui.toggle(g2, {label: 'Room lasers ON', value: S.lasers, onChange: (v) => { S.lasers = v; ui.toast(v ? 'Lasers on' : 'Lasers off', 'ok'); }});
+      refs.lasers = ui.toggle(g2, {label: 'Room lasers ON', value: S.lasers, onChange: (v) => { S.lasers = v; ui.toast(v ? 'Lasers on' : 'Lasers off', 'ok'); }});
       ui.note(g2, 'The yellow/black ring on the floor marks the couch-swing safety zone.');
       const g3 = ui.group(p, 'Field shaping (at isocentre)');
       const apply = () => { ap.clamp(); ap.version++; };
@@ -63,7 +65,7 @@ export function buildLinacPanels(stage, lin, ui) {
       ui.toggle(g5, {label: 'Collision interlocks', value: true, onChange: (v) => { S.interlock = v; }});
       ui.segmented(g5, {label: 'Motion speed', options: [[1, '1×'], [4, '4×'], [10, '10×']], value: S.timeScale, onChange: (v) => { S.timeScale = +v; }});
       const g6 = ui.group(p, 'Display', false);
-      ui.slider(g6, {label: 'Covers (solid ↔ x-ray)', min: 0, max: 1, step: 0.05, value: 1, fmt: (v) => Math.round(v * 100) + '%', onInput: (v) => { S.coverOpacity = v; if (v > 0.3 && S.selected) lin.selectPart(null); }});
+      refs.covers = ui.slider(g6, {label: 'Covers (solid ↔ x-ray)', min: 0, max: 1, step: 0.05, value: 1, fmt: (v) => Math.round(v * 100) + '%', onInput: (v) => { S.coverOpacity = v; if (v > 0.3 && S.selected) lin.selectPart(null); }});
       ui.toggle(g6, {label: 'Light field', value: true, onChange: (v) => { S.fieldLight = v; }});
       ui.toggle(g6, {label: 'Show radiation beam (teaching aid)', value: true, onChange: (v) => { S.beamVis = v; S.beamPreview = false; }});
       ui.toggle(g6, {label: 'Preview beam when off', value: false, onChange: (v) => { S.beamPreview = v; }});
@@ -105,7 +107,12 @@ export function buildLinacPanels(stage, lin, ui) {
 
   /* ---------- parts explorer ---------- */
   let sel = -1;
+  let homeTw = null; stage.onFrame((dt) => { if (!homeTw) return; const k = 1 - Math.pow(0.001, dt); stage.camera.position.lerp(homeTw.cam, k); stage.controls.target.lerp(homeTw.target, k); if (stage.camera.position.distanceTo(homeTw.cam) < 0.01) homeTw = null; });
   function selectIndex(i) {
+    if (i >= 0 && i === sel) { // clicking the selected part again un-selects it and returns to the default view
+      const rc = lin.recenter(); homeTw = {target: rc.target.clone(), cam: rc.cam.clone()};
+      S.coverOpacity = 1; refs.covers && refs.covers.set(1); i = -1;
+    }
     sel = i; refs.partBtns.forEach((b, k) => b && b.classList.toggle('on', k === i));
     if (i < 0) { lin.selectPart(null); ui.hideCard(); return; }
     const d = modelDescriptions[i]; lin.selectPart(d.Modelname || null); if (d.Modelname === '15_KV_Imagine_System') { S.kvTarget = 1; refs.kv && refs.kv.set(true); } if (d.Modelname === 'MV_Portal_Imager') { S.mvTarget = 1; refs.mv && refs.mv.set(true); }
@@ -180,12 +187,22 @@ export function buildLinacPanels(stage, lin, ui) {
       return d; },
      checks: () => [['Time-out completed', W.timeout]]},
     {id: 'setup', title: '2 · Set up to room lasers', body: () => {
-      const d = ui.el('div'); ui.note(d, 'The phantom was placed with a deliberate error. Use couch <b>lateral / longitudinal / vertical</b> so the <b>top mark</b> and <b>side marks</b> sit exactly on the red laser lines (sagittal, axial, lateral). Tolerance 2 mm.');
-      refs.setupRO = [ui.readout(d, 'Lateral offset (X)'), ui.readout(d, 'Longitudinal offset (Y)'), ui.readout(d, 'Vertical offset (Z)')];
-      ui.button(d, 'Show me the couch directions', () => ui.toast('IEC: lateral = ±X (patient left +), longitudinal = couch in/out, vertical = couch height. Offsets are mark − laser.'), 'ghost');
+      const d = ui.el('div');
+      ui.note(d, '<b>Goal:</b> the patient (here a water phantom) must sit exactly where the plan assumes. The <b>red room lasers</b> cross at the isocentre. The phantom has <b>black cross-marks</b> on its top and sides; each mark must sit exactly on its red laser line. The phantom was placed slightly off on purpose.');
+      ui.note(d, '<b>How:</b> move the <b>couch</b> (Controls tab → Couch). For each line below, move that couch axis by the amount shown, or type the target value into the box under the slider and press <b>Go</b>. Each line turns green when it is within 2 mm.');
+      refs.setupRO = [ui.readout(d, 'Couch IN / OUT (longitudinal)'), ui.readout(d, 'Couch sideways (lateral)'), ui.readout(d, 'Couch UP / DOWN (vertical)')];
+      refs.setupTgt = ui.el('div', 'note'); refs.setupTgt.style.cssText = 'font-size:12px;color:var(--mute);margin:4px 0'; d.append(refs.setupTgt);
+      const r = ui.el('div'); d.append(r);
+      ui.button(r, 'Zoom to phantom', () => { const t = new THREE.Vector3(ISO.x, ISO.y - 0.1, 0); homeTw = {target: t, cam: t.clone().add(new THREE.Vector3(-0.9, 0.7, 1.1))}; }, 'ghost');
+      ui.button(r, 'Lasers on/off', () => { S.lasers = !S.lasers; refs.lasers && refs.lasers.set(S.lasers); }, 'ghost');
       return d; },
-     checks: () => { const e = setupError(), t = 0.002; return [[`Lateral ${mm(e.dz)} mm`, Math.abs(e.dz) < t], [`Longitudinal ${mm(e.dx)} mm`, Math.abs(e.dx) < t], [`Vertical ${mm(e.dy)} mm`, Math.abs(e.dy) < t]]; },
-     live: () => { const e = setupError(); if (refs.setupRO) { refs.setupRO[0].set(mm(e.dz) + ' mm', Math.abs(e.dz) < 0.002 ? 'ok' : 'bad'); refs.setupRO[1].set(mm(e.dx) + ' mm', Math.abs(e.dx) < 0.002 ? 'ok' : 'bad'); refs.setupRO[2].set(mm(e.dy) + ' mm', Math.abs(e.dy) < 0.002 ? 'ok' : 'bad'); } }},
+     checks: () => { const e = setupError(), t = 0.002; return [[`Longitudinal ${mm(e.dx)} mm`, Math.abs(e.dx) < t], [`Lateral ${mm(e.dz)} mm`, Math.abs(e.dz) < t], [`Vertical ${mm(e.dy)} mm`, Math.abs(e.dy) < t]]; },
+     live: () => { const e = setupError();
+       const say = (v, neg, pos) => Math.abs(v) < 0.002 ? 'OK ✔' : `move ${(Math.abs(v) * 1000).toFixed(1)} mm ${v > 0 ? pos : neg}`;
+       if (refs.setupRO) { const st = (v) => Math.abs(v) < 0.002 ? 'ok' : 'bad';
+         refs.setupRO[0].set(say(e.dx, 'IN', 'OUT'), st(e.dx)); refs.setupRO[1].set(say(e.dz, 'toward + on the Lateral slider', 'toward − on the Lateral slider'), st(e.dz)); refs.setupRO[2].set(say(e.dy, 'UP', 'DOWN'), st(e.dy)); }
+       if (refs.setupTgt) { const lng = -(axes.couchLng.val + e.dx) * 100, lat = (axes.couchLat.val + LATSIGN * e.dz) * 100, vrt = (axes.couchVrt.val - e.dy - ISO.y) * 100;
+         refs.setupTgt.innerHTML = `Target slider values → Longitudinal <b>${lng.toFixed(1)}</b> cm · Lateral <b>${lat.toFixed(1)}</b> cm · Vertical <b>${vrt.toFixed(1)}</b> cm`; } }},
     {id: 'img', title: '3 · Image guidance (kV + MV)', body: () => {
       const d = ui.el('div'); ui.note(d, 'The machine has two imagers. <b>kV</b>: orthogonal source/detector arms (AP + lateral) find the internal marker; the couch is shifted to bring it to the isocentre. <b>MV portal imager</b> (EPID): sits opposite the treatment head and images the beam itself, so it checks the field shape and position. Extend, acquire, then apply the shift.');
       const r1 = ui.el('div'); d.append(r1);
@@ -222,6 +239,7 @@ export function buildLinacPanels(stage, lin, ui) {
       const c = ui.el('div', 'step' + (i === W.step ? ' on' : i < W.step ? ' done' : '')); c.append(ui.el('h4', '', st.title));
       if (i === W.step) {
         c.append(st.body()); refs.chk = ui.el('div', 'chk'); c.append(refs.chk); refs.next = ui.button(c, i === STEPS.length - 1 ? 'Finish' : 'Next step ›', () => { if (W.step === 3 && W.beam < PLANS[W.plan].beams.length - 1 && false) return; advance(); }, 'go'); refs.next.disabled = true;
+        ui.button(c, '⏭ Skip: do this step for me', () => skipStep(), 'ghost');
         if (i > 0) ui.button(c, '‹ Back', () => { W.step = Math.max(0, W.step - 1); renderWF(); }, 'ghost');
       }
       body.append(c);
@@ -233,6 +251,28 @@ export function buildLinacPanels(stage, lin, ui) {
       if (W.beam < PLANS[W.plan].beams.length - 1) { W.beam++; S.delivered = 0; W.step = 3; ui.toast(`Beam delivered. Next: ${beamTarget().label}`, 'ok'); renderWF(); return; }
     }
     if (W.step < STEPS.length - 1) { W.step++; renderWF(); } else { ui.toast('Fraction complete — well done!', 'ok'); }
+  }
+
+  /* Skip: perform the motions/actions the current step needs (at 10x speed), wait until its checks pass, then advance. */
+  let skipping = false;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(cond, ms = 30000) { const t0 = performance.now(); while (!cond() && performance.now() - t0 < ms) await sleep(100); return cond(); }
+  async function skipStep() {
+    if (skipping) return; skipping = true; const ts = S.timeScale; S.timeScale = 10; const id = STEPS[W.step].id;
+    try {
+      if (id === 'plan') { W.timeout = true; S.energy = PLANS[W.plan].energy; S.mu = PLANS[W.plan].mu; ap.version++; }
+      else if (id === 'setup') { for (let k = 0; k < 3; k++) { const e = setupError(); const cl = (a, v) => Math.min(a.max, Math.max(a.min, v));
+          axes.couchLng.tgt = cl(axes.couchLng, axes.couchLng.val + e.dx); axes.couchVrt.tgt = cl(axes.couchVrt, axes.couchVrt.val - e.dy); axes.couchLat.tgt = cl(axes.couchLat, axes.couchLat.val + LATSIGN * e.dz); syncSliders(); S.status = 'MOVING';
+          await until(() => ['couchLng', 'couchVrt', 'couchLat'].every((k2) => Math.abs(axes[k2].val - axes[k2].tgt) < 1e-4), 15000); const e2 = setupError(); if (Math.max(Math.abs(e2.dx), Math.abs(e2.dy), Math.abs(e2.dz)) < 0.0015) break; } }
+      else if (id === 'img') { S.kvTarget = 1; S.mvTarget = 1; refs.kv && refs.kv.set(true); refs.mv && refs.mv.set(true); await until(() => S.kvOut > 0.95 && S.mvOut > 0.95, 15000);
+          W.kvImaged = true; W.mvImaged = true; W.shown = 'kv'; applyShift(); W.kvApplied = true; await until(() => markerErr().n < 0.0012, 15000); drawImg(); }
+      else if (id === 'beam') { S.kvTarget = 0; S.mvTarget = 0; refs.kv && refs.kv.set(false); refs.mv && refs.mv.set(false); loadBeam(beamTarget()); S.status = 'MOVING'; }
+      else if (id === 'deliver') { if (S.doorOpen) { S.doorOpen = false; refs.door && refs.door.set(true); lin.room.setDoor(false); await sleep(600); } if (!S.beamOn && S.delivered < S.mu - 0.01) beamOn(); }
+      else if (id === 'end') { S.beamOn = false; S.doorOpen = true; refs.door && refs.door.set(false); lin.room.setDoor(true); S.kvTarget = 0; S.mvTarget = 0; refs.kv && refs.kv.set(false); refs.mv && refs.mv.set(false);
+          axes.couchRot.tgt = 0; axes.gantry.tgt = 0; axes.couchLng.tgt = 0.8; axes.couchVrt.tgt = axes.couchVrt.min + 0.1; syncSliders(); }
+      const st = STEPS[W.step]; const ok = await until(() => st.checks().every(([, k]) => k), id === 'deliver' ? 120000 : 20000);
+      if (ok) advance(); else { renderWF(); ui.toast('Skip could not finish this step automatically (check interlocks / collisions).', 'bad'); }
+    } finally { S.timeScale = ts; skipping = false; }
   }
   function tickWF(force) {
     const st = STEPS[W.step]; if (!st || !refs.chk) return; if (st.live) st.live();

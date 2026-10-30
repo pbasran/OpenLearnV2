@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {M} from '../engine/materials.js';
+import {addIndexTop} from '../engine/indextop.js';
 
 export const PH = {size: 0.30};            // water phantom edge (m)
 export class Couch {
@@ -18,7 +19,7 @@ export class Couch {
     // sliding top
     this.top = new THREE.Group(); this.root.add(this.top);
     this.slab = add(new RoundedBoxGeometry(2.1, 0.05, 0.53, 4, 0.02), M.couchTop(), -0.9, -0.025, 0, this.top);
-    for (const s of [-1, 1]) add(new THREE.BoxGeometry(2.08, 0.025, 0.02), M.steel(), -0.9, -0.012, s * 0.265, this.top);
+    this.index = addIndexTop(this.top, {len: 2.08, wid: 0.5, headX: 0.14, dir: -1, topY: 0, th: 0.05});   // same indexed flat top as the CT couch
     add(new THREE.BoxGeometry(0.02, 0.012, 0.5), M.rubber(), 0.14, -0.004, 0, this.top);
     // phantom (centred above top surface); local x/z relative to the couch top reference point
     this.phantom = new THREE.Group(); this.top.add(this.phantom);

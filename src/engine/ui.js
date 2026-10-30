@@ -34,15 +34,24 @@ export function createUI(root) {
     group(parent, title, open = true) {
       const d = h('details', 'grp'); d.open = open; d.append(h('summary', '', title)); const c = h('div', 'grp-body'); d.append(c); parent.append(d); return c;
     },
-    slider(parent, {label, min, max, step = 1, value = 0, unit = '', fmt, onInput, hint}) {
+    slider(parent, {label, min, max, step = 1, value = 0, unit = '', fmt, onInput, hint, go = false}) {
       const wrap = h('label', 'row'); const top = h('div', 'rowtop');
       const name = h('span', 'name', label); const val = h('output', 'val'); top.append(name, val);
       const inp = h('input'); inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.value = value;
       const show = (v) => { val.textContent = (fmt ? fmt(+v) : (+v).toFixed(step < 1 ? 1 : 0)) + unit; };
       show(value);
       inp.oninput = () => { show(inp.value); onInput && onInput(+inp.value); };
-      wrap.append(top, inp); if (hint) wrap.append(h('small', '', hint)); parent.append(wrap);
-      return {el: wrap, set(v) { inp.value = v; show(v); }, get: () => +inp.value, setRange(a, b) { inp.min = a; inp.max = b; }, disabled(d) { inp.disabled = d; }};
+      wrap.append(top, inp); if (hint) wrap.append(h('small', '', hint));
+      // optional exact entry: type a number and press Go (or Enter); the value is clamped to the slider range
+      let num = null, gob = null;
+      if (go) {
+        const row = h('div', 'gorow'); num = h('input'); num.type = 'number'; num.min = min; num.max = max; num.step = 'any'; num.placeholder = 'type value' + (unit ? ' (' + unit.trim() + ')' : '');
+        gob = h('button', 'btn go', 'Go'); gob.type = 'button';
+        const doGo = (e) => { if (e) { e.preventDefault(); e.stopPropagation(); } if (num.value === '') return; const v = Math.min(+inp.max, Math.max(+inp.min, +num.value)); inp.value = v; show(v); num.value = (+v).toFixed(step < 1 ? 1 : 0); onInput && onInput(v); };
+        gob.onclick = doGo; num.onkeydown = (e) => { if (e.key === 'Enter') doGo(e); }; row.append(num, gob); wrap.append(row);
+      }
+      parent.append(wrap);
+      return {el: wrap, set(v) { inp.value = v; show(v); }, get: () => +inp.value, setRange(a, b) { inp.min = a; inp.max = b; if (num) { num.min = a; num.max = b; } }, disabled(d) { inp.disabled = d; if (num) { num.disabled = d; gob.disabled = d; } }};
     },
     toggle(parent, {label, value = false, onChange}) {
       const wrap = h('label', 'row tog'); const inp = h('input'); inp.type = 'checkbox'; inp.checked = value;

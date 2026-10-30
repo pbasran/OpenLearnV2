@@ -23,8 +23,8 @@ export function buildCTPanels(stage, ct, ui) {
   const tabs = ui.tabs([
     {name: 'Scanner', build: (p) => {
       const g1 = ui.group(p, 'Patient table');
-      sync.tin = (() => { const s = ui.slider(g1, {label: 'Table position (in →)', min: 0, max: axes.tableIn.max * 1000, step: 1, value: 0, unit: ' mm', fmt: (v) => v.toFixed(0), onInput: (v) => { axes.tableIn.tgt = v / 1000; }}); refs.tin = s; return () => s.set(axes.tableIn.tgt * 1000); })();
-      sync.th = (() => { const s = ui.slider(g1, {label: 'Table height (top surface)', min: axes.tableH.min * 1000, max: axes.tableH.max * 1000, step: 1, value: axes.tableH.tgt * 1000, unit: ' mm', fmt: (v) => v.toFixed(0), onInput: (v) => { axes.tableH.tgt = v / 1000; }}); refs.th = s; return () => s.set(axes.tableH.tgt * 1000); })();
+      sync.tin = (() => { const s = ui.slider(g1, {go: true, label: 'Table position (in →)', min: 0, max: axes.tableIn.max * 1000, step: 1, value: 0, unit: ' mm', fmt: (v) => v.toFixed(0), onInput: (v) => { axes.tableIn.tgt = v / 1000; }}); refs.tin = s; return () => s.set(axes.tableIn.tgt * 1000); })();
+      sync.th = (() => { const s = ui.slider(g1, {go: true, label: 'Table height (top surface)', min: axes.tableH.min * 1000, max: axes.tableH.max * 1000, step: 1, value: axes.tableH.tgt * 1000, unit: ' mm', fmt: (v) => v.toFixed(0), onInput: (v) => { axes.tableH.tgt = v / 1000; }}); refs.th = s; return () => s.set(axes.tableH.tgt * 1000); })();
       const row = ui.el('div'); g1.append(row);
       ui.button(row, 'Home (out)', () => { axes.tableIn.tgt = 0; syncScan(); }, 'ghost');
       ui.button(row, 'To scan plane (range start)', () => { axes.tableIn.tgt = Math.min(axes.tableIn.max, Math.max(0, ct.sToTable(S.range[0]))); syncScan(); }, 'ghost');
@@ -38,7 +38,11 @@ export function buildCTPanels(stage, ct, ui) {
       refs.alAx = ui.readout(g3, 'Landmark ring vs axial laser'); refs.alSag = ui.readout(g3, 'Midline vs sagittal laser'); refs.alCor = ui.readout(g3, 'Mid-height vs coronal laser');
       ui.note(g3, 'Tolerance ±2 mm. Red laser lines are drawn where they cross the phantom and table. Raise or lower the table until the side marks sit on the horizontal laser.');
       const g4 = ui.group(p, 'Gantry');
-      sync.tilt = (() => { const s = ui.slider(g4, {label: 'Gantry tilt', min: -30, max: 30, step: 0.5, value: 0, unit: '°', onInput: (v) => { axes.tilt.tgt = v; }}); return () => s.set(axes.tilt.tgt); })();
+      let tiltSl = null;
+      sync.tilt = (() => { const s = ui.slider(g4, {go: true, label: 'Gantry tilt', min: -30, max: 30, step: 0.5, value: 0, unit: '°', onInput: (v) => { axes.tilt.tgt = v; }}); tiltSl = s; return () => s.set(axes.tilt.tgt); })();
+      // tilt is rarely used in radiation oncology simulation: locked (and held at 0°) by default
+      S.tiltLock = true; tiltSl.disabled(true);
+      refs.tiltLock = ui.toggle(g4, {label: 'Lock gantry tilt at 0° (typical for RadOnc)', value: true, onChange: (v) => { S.tiltLock = v; tiltSl.disabled(v); if (v) { axes.tilt.tgt = 0; tiltSl.set(0); } ui.toast(v ? 'Tilt locked at 0°' : 'Tilt unlocked', 'ok'); }});
       ui.note(g4, 'Tilt keeps the scan plane perpendicular to the anatomy (and avoids eyes in head CT). Tilt is blocked if the table or phantom would touch the bore.');
       refs.cover = ui.slider(g4, {label: 'Gantry cover (solid ↔ x-ray)', min: 0, max: 1, step: 0.05, value: 1, fmt: (v) => Math.round(v * 100) + '%', onInput: (v) => { S.coverOpacity = v; }});
       ui.button(g4, 'See the rotating tube', () => { S.coverOpacity = 0.12; refs.cover.set(0.12); ct.flyTo(ct.presets.front.target, ct.presets.front.cam); }, 'ghost');
@@ -162,7 +166,10 @@ export function buildCTPanels(stage, ct, ui) {
   function report() { const r = S.scanRes; if (!r) return ui.toast('No scan yet.', 'bad'); ui.showCard({title: 'Scan dose report', subtitle: 'illustrative, not for clinical use', html: `${r.kvp} kVp · ${r.mAs} mAs/rotation (eff. ${(r.mAs / r.pitch).toFixed(0)}) · pitch ${r.pitch}\nrange ${r.s0.toFixed(1)}–${r.s1.toFixed(1)} cm · ${r.n} slices × ${r.thick} mm\n\n<b>CTDIvol</b> ${r.dose.ctdi.toFixed(1)} mGy\n<b>DLP</b> ${r.dose.dlp.toFixed(0)} mGy·cm\n<b>Effective dose</b> ≈ ${r.dose.eff.toFixed(1)} mSv (k = 0.014)`}); }
 
   /* ---------- parts explorer ---------- */
+  let selCT = -1;
   function selectIndex(i) {
+    if (i >= 0 && i === selCT) { i = -1; const rc = ct.recenter(); ct.flyTo(rc.target, rc.cam); }
+    selCT = i;
     refs.partBtns.forEach((b, k) => b.classList.toggle('on', k === i));
     if (i < 0) { ct.selectPart(null); ui.hideCard(); return; }
     const d = modelDescriptions[i]; ct.selectPart(d.Modelname);
@@ -207,10 +214,30 @@ export function buildCTPanels(stage, ct, ui) {
     const body = refs.wfBody; if (!body) return; body.innerHTML = '';
     STEPS.forEach((st, i) => {
       const c = ui.el('div', 'step' + (i === W.step ? ' on' : i < W.step ? ' done' : '')); c.append(ui.el('h4', '', st.title));
-      if (i === W.step) { c.append(st.body()); refs.chk = ui.el('div', 'chk'); c.append(refs.chk); refs.next = ui.button(c, i === STEPS.length - 1 ? 'Finish' : 'Next step ›', () => { if (W.step < STEPS.length - 1) { W.step++; renderWF(); } else ui.toast('Examination complete — well done!', 'ok'); }, 'go'); refs.next.disabled = true; if (i > 0) ui.button(c, '‹ Back', () => { W.step--; renderWF(); }, 'ghost'); }
+      if (i === W.step) { c.append(st.body()); refs.chk = ui.el('div', 'chk'); c.append(refs.chk); refs.next = ui.button(c, i === STEPS.length - 1 ? 'Finish' : 'Next step ›', () => { if (W.step < STEPS.length - 1) { W.step++; renderWF(); } else ui.toast('Examination complete — well done!', 'ok'); }, 'go'); refs.next.disabled = true; ui.button(c, '⏭ Skip: do this step for me', () => skipStep(), 'ghost'); if (i > 0) ui.button(c, '‹ Back', () => { W.step--; renderWF(); }, 'ghost'); }
       body.append(c);
     });
     tickWF();
+  }
+
+  /* Skip: perform the motions/actions the current step needs, wait for its checks to pass, then advance. */
+  let skipping = false;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(cond, ms = 30000) { const t0 = performance.now(); while (!cond() && performance.now() - t0 < ms) await sleep(100); return cond(); }
+  async function skipStep() {
+    if (skipping) return; skipping = true; const ts = S.timeScale; S.timeScale = 5; const id = STEPS[W.step].id, e = EXAMS[W.exam];
+    try {
+      if (id === 'plan') { W.timeout = true; protoApply(e); }
+      else if (id === 'pos') { for (let k = 0; k < 3; k++) { const m = ct.marks(); ct.nudge(-m.sagittal); axes.tableH.tgt = Math.min(axes.tableH.max, Math.max(axes.tableH.min, axes.tableH.val - m.coronal)); axes.tableIn.tgt = Math.min(axes.tableIn.max, Math.max(0, axes.tableIn.val + m.axial)); syncScan();
+          await until(() => Math.abs(axes.tableH.val - axes.tableH.tgt) < 1e-4 && Math.abs(axes.tableIn.val - axes.tableIn.tgt) < 1e-4, 15000); const m2 = ct.marks(); if (Math.max(Math.abs(m2.sagittal), Math.abs(m2.coronal), Math.abs(m2.axial)) < 0.0015) break; } }
+      else if (id === 'scout') { S.doorOpen = false; refs.door && refs.door.set(true); axes.tilt.tgt = 0; await until(() => Math.abs(axes.tilt.val) < 0.05, 8000); doScout('ap'); await sleep(300); await until(() => S.scoutDone && !S.scanState, 60000); }
+      else if (id === 'plan2') { axes.tilt.tgt = 0; S.range = [...e.target]; S.fov = Math.max(S.fov, e.name.includes('Thorax') || e.name.includes('Low') ? 34 : 24); syncRange && syncRange(); syncScan(); await until(() => Math.abs(axes.tilt.val) < 0.1, 8000); }
+      else if (id === 'scan') { S.doorOpen = false; refs.door && refs.door.set(true); doScan(); await sleep(300); await until(() => S.scanRes && !S.scanState, 120000); }
+      else if (id === 'review') { if (W.exam === 'qa') W.roiOk = true; else { setWL(-600, 1500, 'lung'); W.nod = true; } ui.toast('Review step completed for you — on your own, place the ROI on the Images tab.', 'ok'); }
+      else if (id === 'end') { axes.tableIn.tgt = 0; axes.tableH.tgt = 0.95; S.doorOpen = true; refs.door && refs.door.set(false); syncScan(); }
+      const st = STEPS[W.step]; const ok = await until(() => st.checks().every(([, k]) => k), 30000);
+      if (ok) { if (W.step < STEPS.length - 1) { W.step++; renderWF(); } else ui.toast('Examination complete — well done!', 'ok'); } else { renderWF(); ui.toast('Skip could not finish this step automatically (check interlocks).', 'bad'); }
+    } finally { S.timeScale = ts; skipping = false; }
   }
   function tickWF() { const st = STEPS[W.step]; if (!st || !refs.chk) return; if (st.live) st.live(); const cs = st.checks(); refs.chk.innerHTML = cs.map(([t, ok]) => `<span class="${ok ? 'y' : 'n'}">${ok ? '✔' : '✖'} ${t}</span>`).join(''); if (refs.next) refs.next.disabled = !cs.every(([, ok]) => ok); }
   protoApply(EXAMS[W.exam]); buildWF(); derive();

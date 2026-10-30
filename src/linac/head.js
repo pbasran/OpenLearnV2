@@ -104,9 +104,9 @@ export class Head {
   _buildFieldLight() {
     const c = this.fieldCanvas = document.createElement('canvas'); c.width = c.height = 512;
     this.fieldTex = new THREE.CanvasTexture(c); this.fieldTex.colorSpace = THREE.SRGBColorSpace; this.fieldTex.generateMipmaps = false; this.fieldTex.minFilter = this.fieldTex.magFilter = THREE.LinearFilter;
-    const L = new THREE.SpotLight(0xfff0c8, 42, 0, Math.atan(0.31), 0, 0);
+    const L = new THREE.SpotLight(0xfff0c8, 42, 0, Math.atan(0.30), 0, 0);
     L.position.copy(this.src); L.target.position.set(this.isoX, this.isoY, 0);
-    L.castShadow = true; L.shadow.mapSize.set(1024, 1024); L.shadow.camera.near = 0.46; L.shadow.camera.far = 3.2; L.shadow.bias = -0.0006; L.shadow.normalBias = 0.01; L.shadow.radius = 2;
+    L.castShadow = true; L.shadow.mapSize.set(1024, 1024); L.shadow.camera.near = 0.46; L.shadow.camera.far = 9; L.shadow.bias = -0.0006; L.shadow.normalBias = 0.01; L.shadow.radius = 2;
     L.map = this.fieldTex; this.light = L; this.group.add(L); this.group.add(L.target);
   }
   _drawField() {
