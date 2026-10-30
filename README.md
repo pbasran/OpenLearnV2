@@ -41,7 +41,13 @@ npm run build      # static site in dist/ (relative paths; can be hosted in any 
 | CT table | — | flat indexed carbon-fibre couch top (numbered index positions, cm ruler) with its own Parts learning item; positioning lasers can be switched on/off |
 | CT workflow | — | time-out → laser positioning → scout → range & protocol → acquire (helical or axial) → review / measure → finish |
 
-## Layout
+## 🐾 Easter eggs
+There is one hidden in each module. No spoilers, just hints:
+
+* **Linac:** treatment rooms are dark and the beam is invisible, but not everything about it is. Turn the beam on with the gantry pointing straight down and the covers see-through, then look at the floor.
+* **CT:** the bones are shy. Open the window as wide as it will go, and set the level as high as it will go, and see who is hiding in the image.
+
+
 
 ```
 src/engine/   stage (renderer, lights, picking), materials, ui kit, plot, ar.js (WebXR)

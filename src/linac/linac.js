@@ -78,6 +78,12 @@ export async function createLinac(stage) {
       const cone = new T.Mesh(new T.LatheGeometry(pts, 40), mats[k]); cone.position.set(0, 0.0035, ffSlotZ(k)); cone.castShadow = true; ffCar.add(cone);
     }
     register('11_Flatening_Filter', ffCar); }
+  // hidden: with the beam on, the gantry straight overhead and the covers see-through, a blue Cherenkov-style glow spells out the lab name on the floor
+  const eggCv = document.createElement('canvas'); eggCv.width = 1024; eggCv.height = 256;
+  { const g = eggCv.getContext('2d'); g.clearRect(0, 0, 1024, 256); g.font = 'bold 150px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.shadowColor = '#3ad0ff'; g.shadowBlur = 36; g.fillStyle = '#bff0ff'; g.fillText('VAIDER LAB', 512, 134); g.shadowBlur = 0; g.fillText('VAIDER LAB', 512, 134); }
+  const eggTx = new T.CanvasTexture(eggCv); eggTx.colorSpace = T.SRGBColorSpace;
+  const eggMesh = new T.Mesh(new T.PlaneGeometry(1.1, 0.275).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({map: eggTx, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending, toneMapped: false}));
+  eggMesh.rotation.y = Math.PI / 2; eggMesh.scale.setScalar(2.1); eggMesh.position.set(ISO.x, FLOOR_Y + 0.004, 0); eggMesh.renderOrder = 5; eggMesh.visible = false; world.add(eggMesh);
   const ffIndex = () => (S.fff ? 3 : ({6: 0, 10: 1, 15: 2}[S.energy] ?? 0));
   let ffPos = null;
   // the original kV model also carries a third (bottom) panel; the bottom imager in v2 is the MV portal imager only, so drop that component
@@ -251,6 +257,7 @@ export async function createLinac(stage) {
     head.setFieldLight(S.fieldLight && !S.beamOn);
     couch.updateLasers(S.lasers);
     { const goal = -ffSlotZ(ffIndex()); if (ffPos === null) ffPos = goal; ffPos += (goal - ffPos) * Math.min(1, dt * 4 * Math.max(1, S.timeScale / 4)); if (Math.abs(goal - ffPos) < 0.0005) ffPos = goal; ffCar.position.z = ffPos; }
+    { const on = S.beamOn && Math.abs(axes.gantry.val) < 1.5 && S.coverOpacity < 0.3; eggMesh.visible = on; if (on) eggMesh.material.opacity = 0.55 + 0.25 * Math.sin(performance.now() / 260); }
     eBeam.update(dt, S.eAnim && (E_PARTS.includes(S.selected) || (S.beamOn && S.coverOpacity < 0.3))); room.wallLasers.visible = S.lasers; room.console.update(S, axes, S.energy);
     // dose slice refresh (throttled)
     slice.visible = S.doseView;

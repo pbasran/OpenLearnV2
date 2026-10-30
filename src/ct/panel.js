@@ -1,5 +1,6 @@
 // CT UI: table / gantry / laser alignment, protocol & scout & acquisition, image viewer (W/L, ROI), guided workflow, parts explorer.
 import {modelDescriptions} from './data.js';
+import {dogBones} from './egg.js';
 import {SECTIONS, PHANTOM_LEN, sectionAt, roiStats, windowToCanvas, KERNEL_NAMES, doseInfo, KVP} from './recon.js';
 import {AX_Y} from './ct.js';
 
@@ -158,10 +159,12 @@ export function buildCTPanels(stage, ct, ui) {
   function draw() {
     const im = view.img; if (!im || !refs.cv) return; const rois = view.roi ? [{...view.roi}] : [];
     windowToCanvas(im, refs.cv, view.wl, view.ww, rois);
+    const egg = view.ww >= 2400 && view.wl >= 800; if (egg) { dogBones(refs.cv.getContext('2d'), im.n); if (!W.egg) { W.egg = true; ui.toast('🐕 Found it: a very good dog hides in the bone window.', 'ok'); } }
     // annotate orientation + info
     const g = refs.cv.getContext('2d'), n = im.n; g.fillStyle = '#ffd34d'; g.font = `${Math.round(n / 18)}px system-ui`; g.textAlign = 'center'; g.fillText('R', n * 0.04, n / 2); g.fillText('L', n * 0.96, n / 2); g.fillText('A', n / 2, n * 0.07); g.fillText('P', n / 2, n * 0.93);
     g.textAlign = 'left'; g.font = `${Math.round(n / 22)}px monospace`; g.fillStyle = '#b6e0e6'; g.fillText(`${im.params.kvp} kVp  ${im.params.mAs} mAs  ${im.params.thick} mm`, 6, n - 6 - n / 18 * 0); g.textAlign = 'right'; g.fillText(`W${Math.round(view.ww)} L${Math.round(view.wl)}`, n - 6, n - 6);
     windowToCanvas(im, im.canvas, view.wl, view.ww, rois);
+    if (view.ww >= 2400 && view.wl >= 800) dogBones(im.canvas.getContext('2d'), im.n);
     ct.showMonitorImage(im, view.wl, view.ww);
     refs.vinfo.innerHTML = `<b>${im.section.name}</b> · slice at <b>${im.s.toFixed(1)} cm</b> · FOV ${im.fov} cm<br>${im.section.note}`;
     if (view.roi) { const st = roiStats(im, view.roi.cx, view.roi.cy, view.roi.r); refs.roi.set(`${st.mean.toFixed(1)} ± ${st.sd.toFixed(1)} HU`); view.roiStat = st; checkROI(st, im); } else refs.roi.set('—');
