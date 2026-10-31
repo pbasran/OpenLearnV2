@@ -22,7 +22,7 @@ export function setupAR(stage, ui, getModule) {
     if (A.active) return end();
     if (!(await supported())) {
       ui.showCard({title: 'AR is not available on this browser', subtitle: 'WebXR needs Chrome or Edge on an ARCore-capable Android phone',
-        html: 'This v2 viewer uses the open WebXR standard instead of 8th Wall (which has been discontinued).\n\n• <b>Android</b>: open this page in Chrome and tap AR.\n• <b>iPhone / iPad</b>: Safari does not support WebXR AR; use the 3D view here, or an iOS WebXR viewer app that supports immersive-ar.\n• <b>Headsets</b>: the Quest browser supports immersive AR (passthrough).'});
+        html: 'This v2 viewer uses the open WebXR standard instead of 8th Wall (which has been discontinued).\n\n• <b>Android</b>: open this page in Chrome and tap AR.\n• <b>iPhone / iPad</b>: Safari has no WebXR, but Apple’s built-in AR viewer can place <b>life-size, static</b> models: <a href="./ar/" style="color:#4fc3d1">open the iPad AR page</a> (linac and CT, no install).\n• <b>Headsets</b>: the Quest browser supports immersive AR (passthrough).'});
       return;
     }
     start();

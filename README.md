@@ -8,7 +8,7 @@ Direct links: [**Linear accelerator**](https://pbasran.github.io/OpenLearnV2/) �
 
 <img src="docs/OpenLearnV2_QR.png" alt="QR code to the OpenLearn v2 viewer" width="220">
 
-Scan with a phone camera. For augmented reality use Chrome on an ARCore-capable Android phone and tap **AR**. On iPhone/iPad the QR code opens the normal 3D view (iOS Safari has no WebXR AR).
+Scan with a phone camera. For augmented reality use Chrome on an ARCore-capable Android phone and tap **AR**. On iPhone/iPad the QR code opens the normal 3D view (iOS Safari has no WebXR AR); for AR on iPad use the **[life-size iPad AR page](https://pbasran.github.io/OpenLearnV2/ar/)** (Apple AR Quick Look, no install).
 
 A separate, from-scratch rebuild of the OpenLearn CT and linac teaching models. **It does not modify or replace the deployed, IRB-approved v1 apps** (`RealtimeUrbanismLab/OpenLearn`, `VirtualLinac`). Host it at its own URL; any study use needs its own review.
 
@@ -62,6 +62,7 @@ public/assets optimised GLB models (from the original OpenLearn repository)
 * **On-board imaging:** the kV source/detector arms (from the original model) and a procedurally modelled MV portal imager (EPID, 43 × 43 cm, SID 150 cm) both extend and retract, take part in collision checks, and are used in the workflow. Images are schematic (marker position / field outline), not simulated radiographs.
 * **The linac is re-proportioned.** The original model puts the isocentre 0.63 m above the floor; v2 raises it to 1.30 m (as on commercial machines) so the head can sweep a full 360° without hitting the floor.
 * CT: reconstruction runs in the browser (~0.2 s per slice at 192², cached); rotation time and table speed use real values, with a 1×/2×/5× time-scale control.
+* **iPad AR (static, life-size)**: `public/ar/` holds USDZ models of the linac (gantry 0° and 90°) and CT (table in / out) at 1 unit = 1 m, opened through Safari's AR Quick Look. Regenerate with `npx vite --port 5199` then `node tools/export-usdz.mjs` (needs Playwright); poses are listed at the top of `tools/export-usdz.mjs`. These are fixed poses; interactive controls remain in the WebXR/3D viewer.
 * AR scale presets: 1:16, 1:8, 1:4 and life-size. The room is hidden in AR and a shadow-catcher floor is added.
 * Not included yet: VR (headset) mode with in-headset controls; real DICOM data; multi-user/instructor features.
 * 3D models © their original authors (OpenLearn repository). Check the original repository's licence before redistributing the assets.
