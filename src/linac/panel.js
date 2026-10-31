@@ -51,8 +51,10 @@ export function buildLinacPanels(stage, lin, ui) {
       ui.segmented(g3, {label: 'MLC shape', options: [['rect', 'Open'], ['circle', 'Circle'], ['ellipse', 'Ellipse'], ['lshape', 'L'], ['blob', 'Blob']], value: 'rect', onChange: (v) => { ap.shape(v); const st = ap.stats(); fw.set(st.fx); fl.set(st.fy); }});
       ui.note(g3, '60 leaf pairs: 40 × 0.5 cm central, 20 × 1.0 cm outer (projected at isocentre). Jaws sit above the MLC and trim the field.');
       const g4 = ui.group(p, 'Beam');
-      ui.segmented(g4, {label: 'Photon energy', options: [[6, '6 MV'], [10, '10 MV'], [15, '15 MV']], value: S.energy, onChange: (v) => { S.energy = +v; ap.version++; }});
-      ui.toggle(g4, {label: 'Flattening-filter-free (FFF)', value: S.fff, onChange: (v) => { S.fff = v; ap.version++; }});
+      // FFF is just another beam selection: each of the four choices uses one slot of the 4-position filter carousel
+      const eSel = (v) => (S.fff ? 'F' : S.energy);
+      refs.energySeg = ui.segmented(g4, {label: 'Photon beam (carousel position)', options: [[6, '6 MV'], [10, '10 MV'], [15, '15 MV'], ['F', '6 MV FFF']], value: eSel(), onChange: (v) => { if (v === 'F') { S.energy = 6; S.fff = true; } else { S.energy = +v; S.fff = false; } ap.version++; }});
+      ui.note(g4, 'Each beam uses one filter on the carousel: 6, 10 and 15 MV each have their own flattening filter, and FFF uses a plain plate (no flattening).');
       ui.slider(g4, {label: 'Monitor units (MU)', min: 10, max: 600, step: 10, value: S.mu, unit: ' MU', onInput: (v) => { S.mu = v; }});
       const row = ui.el('div', ''); g4.append(row);
       refs.beamBtn = ui.button(row, '⚡ BEAM ON', () => beamOn(), 'warn'); ui.button(row, 'Hold / stop', () => { S.beamOn = false; lin.room.setBeamOn(false); S.status = 'HOLD'; }, 'ghost');
@@ -184,7 +186,7 @@ export function buildLinacPanels(stage, lin, ui) {
       const d = ui.el('div'); ui.note(d, 'Verify the right patient, plan and set-up before anything moves. Choose a plan:');
       ui.segmented(d, {label: 'Plan', options: Object.entries(PLANS).map(([k, v]) => [k, v.name.split(' ')[0]]), value: W.plan, onChange: (k) => { W.plan = k; W.beam = 0; const P = PLANS[k]; S.energy = P.energy; S.mu = P.mu; ap.version++; renderWF(); }});
       ui.note(d, `<b>${PLANS[W.plan].name}</b> — ${PLANS[W.plan].blurb}<br>${ENERGIES[PLANS[W.plan].energy].label}, ${PLANS[W.plan].mu} MU per beam, ${PLANS[W.plan].beams.length} beam(s).`);
-      ui.button(d, W.timeout ? '✔ Time-out done' : 'Perform time-out (ID, plan, site, allergies)', () => { W.timeout = true; S.energy = PLANS[W.plan].energy; S.mu = PLANS[W.plan].mu; ap.version++; renderWF(); }, W.timeout ? 'go' : '');
+      ui.button(d, W.timeout ? '✔ Time-out done' : 'Perform time-out (ID, plan, site, allergies)', () => { W.timeout = true; S.energy = PLANS[W.plan].energy; S.fff = false; refs.energySeg && refs.energySeg.set(S.energy); S.mu = PLANS[W.plan].mu; ap.version++; renderWF(); }, W.timeout ? 'go' : '');
       return d; },
      checks: () => [['Time-out completed', W.timeout]]},
     {id: 'setup', title: '2 · Set up to room lasers', body: () => {
@@ -261,7 +263,7 @@ export function buildLinacPanels(stage, lin, ui) {
   async function skipStep() {
     if (skipping) return; skipping = true; const ts = S.timeScale; S.timeScale = 10; const id = STEPS[W.step].id;
     try {
-      if (id === 'plan') { W.timeout = true; S.energy = PLANS[W.plan].energy; S.mu = PLANS[W.plan].mu; ap.version++; }
+      if (id === 'plan') { W.timeout = true; S.energy = PLANS[W.plan].energy; S.fff = false; refs.energySeg && refs.energySeg.set(S.energy); S.mu = PLANS[W.plan].mu; ap.version++; }
       else if (id === 'setup') { for (let k = 0; k < 3; k++) { const e = setupError(); const cl = (a, v) => Math.min(a.max, Math.max(a.min, v));
           axes.couchLng.tgt = cl(axes.couchLng, axes.couchLng.val + e.dx); axes.couchVrt.tgt = cl(axes.couchVrt, axes.couchVrt.val - e.dy); axes.couchLat.tgt = cl(axes.couchLat, axes.couchLat.val + LATSIGN * e.dz); syncSliders(); S.status = 'MOVING';
           await until(() => ['couchLng', 'couchVrt', 'couchLat'].every((k2) => Math.abs(axes[k2].val - axes[k2].tgt) < 1e-4), 15000); const e2 = setupError(); if (Math.max(Math.abs(e2.dx), Math.abs(e2.dy), Math.abs(e2.dz)) < 0.0015) break; } }
