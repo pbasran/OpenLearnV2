@@ -64,7 +64,7 @@ export async function createLinac(stage) {
   }));
   const gunSolid = gantryInner.getObjectByName('05_Electro_Gun'), wgSolid = gantryInner.getObjectByName('06_Waveguide');
   const kv = gantryInner.getObjectByName('15_KV_Imagine_System');
-  // flattening-filter carousel (4 positions: 6 MV, 10 MV, 15 MV filters and the thin FFF plate); the carousel slides so the filter for the selected beam sits in the beam line
+  // flattening-filter slot assembly (4 positions: 6 MV, 10 MV, 15 MV filters and the thin FFF plate); the slot assembly slides so the filter for the selected beam sits in the beam line
   const ffOrig = world.getObjectByName('11_Flatening_Filter'); if (ffOrig) ffOrig.visible = false;
   const ffCar = new T.Group(); ffCar.position.set(ISO.x, 1.650, 0); gantryInner.add(ffCar);
   const FF_PITCH = 0.10, ffSlotZ = (k) => (k - 1.5) * FF_PITCH;

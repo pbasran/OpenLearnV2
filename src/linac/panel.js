@@ -53,8 +53,8 @@ export function buildLinacPanels(stage, lin, ui) {
       const g4 = ui.group(p, 'Beam');
       // FFF is just another beam selection: each of the four choices uses one slot of the 4-position filter carousel
       const eSel = (v) => (S.fff ? 'F' : S.energy);
-      refs.energySeg = ui.segmented(g4, {label: 'Photon beam (carousel position)', options: [[6, '6 MV'], [10, '10 MV'], [15, '15 MV'], ['F', '6 MV FFF']], value: eSel(), onChange: (v) => { if (v === 'F') { S.energy = 6; S.fff = true; } else { S.energy = +v; S.fff = false; } ap.version++; }});
-      ui.note(g4, 'Each beam uses one filter on the carousel: 6, 10 and 15 MV each have their own flattening filter, and FFF uses a plain plate (no flattening).');
+      refs.energySeg = ui.segmented(g4, {label: 'Photon beam', options: [[6, '6 MV'], [10, '10 MV'], [15, '15 MV'], ['F', '6 MV FFF']], value: eSel(), onChange: (v) => { if (v === 'F') { S.energy = 6; S.fff = true; } else { S.energy = +v; S.fff = false; } ap.version++; }});
+      ui.note(g4, 'Each beam energy has its own target and flattening-filter position in a slot that moves into the beam path. The 6, 10 and 15 MV beams each use a flattening filter; the FFF beam uses a plain plate with no flattening.');
       ui.slider(g4, {label: 'Monitor units (MU)', min: 10, max: 600, step: 10, value: S.mu, unit: ' MU', onInput: (v) => { S.mu = v; }});
       const row = ui.el('div', ''); g4.append(row);
       refs.beamBtn = ui.button(row, '⚡ BEAM ON', () => beamOn(), 'warn'); ui.button(row, 'Hold / stop', () => { S.beamOn = false; lin.room.setBeamOn(false); S.status = 'HOLD'; }, 'ghost');
