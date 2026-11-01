@@ -49,7 +49,8 @@ export function buildLinacPanels(stage, lin, ui) {
       const fl = ui.slider(g3, {label: 'Field length Y', min: 1, max: 40, step: 0.5, value: 10, unit: ' cm', onInput: (v) => { const c = (ap.jaw.y1 + ap.jaw.y2) / 2; ap.setRect(ap.jaw.x2 - ap.jaw.x1, v, (ap.jaw.x1 + ap.jaw.x2) / 2, c); refs.fl = v; }});
       refs.fwS = fw; refs.flS = fl;
       ui.segmented(g3, {label: 'MLC shape', options: [['rect', 'Open'], ['circle', 'Circle'], ['ellipse', 'Ellipse'], ['lshape', 'L'], ['blob', 'Blob']], value: 'rect', onChange: (v) => { ap.shape(v); const st = ap.stats(); fw.set(st.fx); fl.set(st.fy); }});
-      ui.note(g3, '60 leaf pairs: 40 × 0.5 cm central, 20 × 1.0 cm outer (projected at isocentre). Jaws sit above the MLC and trim the field.');
+      ui.button(g3, 'Max field 40 × 40 cm', () => { ap.setRect(40, 40); fw.set(40); fl.set(40); }, 'ghost');
+      ui.note(g3, '60 leaf pairs: 40 × 0.5 cm central, 20 × 1.0 cm outer (projected at isocentre); the MLC and jaws open to a full 40 × 40 cm field. Jaws sit above the MLC and trim the field.');
       const g4 = ui.group(p, 'Beam');
       // FFF is just another beam selection: each of the four choices uses one slot of the 4-position filter carousel
       const eSel = (v) => (S.fff ? 'F' : S.energy);
@@ -63,11 +64,13 @@ export function buildLinacPanels(stage, lin, ui) {
       const g5 = ui.group(p, 'Room');
       refs.door = ui.toggle(g5, {label: 'Shielding door closed (interlock)', value: !S.doorOpen, onChange: (v) => { S.doorOpen = !v; lin.room.setDoor(S.doorOpen); }});
       refs.kv = ui.toggle(g5, {label: 'kV imaging arms extended', value: false, onChange: (v) => { S.kvTarget = v ? 1 : 0; }});
+      ui.button(g5, 'Run CBCT (extend kV arms, kV x-rays on, rotate)', () => { const r = lin.cbct.start(); if (!r.ok) ui.toast(r.why, 'bad'); else refs.kv && refs.kv.set(true); }, 'ghost');
       refs.mv = ui.toggle(g5, {label: 'MV portal imager (EPID) extended', value: false, onChange: (v) => { S.mvTarget = v ? 1 : 0; }});
       ui.toggle(g5, {label: 'Collision interlocks', value: true, onChange: (v) => { S.interlock = v; }});
       ui.segmented(g5, {label: 'Motion speed', options: [[1, '1×'], [4, '4×'], [10, '10×']], value: S.timeScale, onChange: (v) => { S.timeScale = +v; }});
       const g6 = ui.group(p, 'Display', false);
       refs.covers = ui.slider(g6, {label: 'Covers (solid ↔ x-ray)', min: 0, max: 1, step: 0.05, value: 1, fmt: (v) => Math.round(v * 100) + '%', onInput: (v) => { S.coverOpacity = v; if (v > 0.3 && S.selected) lin.selectPart(null); }});
+      ui.toggle(g6, {label: 'Head envelope ring (collision zone)', value: true, onChange: (v) => { S.envelope = v; }});
       ui.toggle(g6, {label: 'Light field', value: true, onChange: (v) => { S.fieldLight = v; }});
       ui.toggle(g6, {label: 'Show radiation beam (teaching aid)', value: true, onChange: (v) => { S.beamVis = v; S.beamPreview = false; }});
       ui.toggle(g6, {label: 'Preview beam when off', value: false, onChange: (v) => { S.beamPreview = v; }});
@@ -169,7 +172,11 @@ export function buildLinacPanels(stage, lin, ui) {
     const grat = () => { c.strokeStyle = '#22d3ee66'; c.lineWidth = 1; c.beginPath(); c.moveTo(-120, 0); c.lineTo(120, 0); c.moveTo(0, -120); c.lineTo(0, 120); c.stroke(); };
     const body = (lw, lh) => { const g = c.createLinearGradient(-lw, 0, lw, 0); g.addColorStop(0, '#3a4652'); g.addColorStop(0.5, '#7f8d99'); g.addColorStop(1, '#3a4652'); c.fillStyle = g; c.fillRect(-lw, -lh, 2 * lw, 2 * lh); };
     const marker = (px, py) => { c.fillStyle = '#f2f6fa'; c.beginPath(); c.arc(px, py, 5, 0, 7); c.fill(); c.strokeStyle = '#ff5d5d'; c.lineWidth = 1.5; c.beginPath(); c.arc(px, py, 8, 0, 7); c.stroke(); };
-    if (W.shown === 'kv') {
+    if (W.shown === 'cbct') {
+      const S2 = 0.20 * cm * 100 / 2, grain = (n) => { for (let i = 0; i < n; i++) { const a = (i * 9301 + 49297) % 233280 / 233280, b = (i * 7919 + 1013) % 104729 / 104729; c.fillStyle = `rgba(${a > 0.5 ? 255 : 0},${a > 0.5 ? 255 : 0},${a > 0.5 ? 255 : 0},0.05)`; c.fillRect((a - 0.5) * 2 * S2, (b - 0.5) * 2 * S2, 2, 2); } };
+      panel(0, 'CBCT axial (x lat z, y vert)', () => { body(S2, S2); grain(500); grat(); marker(e.dz * 100 * cm, -e.dy * 100 * cm); });
+      panel(w / 2, 'CBCT sagittal (x long, y vert)', () => { body(S2, S2); grain(500); grat(); marker(e.dx * 100 * cm, -e.dy * 100 * cm); });
+    } else if (W.shown === 'kv') {
       const S2 = 0.20 * cm * 100 / 2;
       panel(0, 'kV AP (x long, z lat)', () => { body(S2, S2); grat(); marker(e.dz * 100 * cm, e.dx * 100 * cm); });
       panel(w / 2, 'kV lateral (x long, y vert)', () => { body(S2, S2); grat(); marker(e.dx * 100 * cm, -e.dy * 100 * cm); });
@@ -179,6 +186,7 @@ export function buildLinacPanels(stage, lin, ui) {
       panel(w / 2, 'Field size / alignment', () => { c.fillStyle = '#cfe0ee'; c.font = '14px sans-serif'; c.fillText(`Field ${st.fx.toFixed(1)} × ${st.fy.toFixed(1)} cm`, -100, -20); c.fillText(`Equiv. square ${st.eq.toFixed(1)} cm`, -100, 4); c.fillText(`Gantry ${axes.gantry.val.toFixed(1)}°  Coll ${axes.coll.val.toFixed(1)}°`, -100, 28); });
     }
   }
+  lin.on('cbct', (type) => { if (type === 'done') { W.kvImaged = true; W.cbctDone = true; W.shown = 'cbct'; drawImg(); ui.toast('CBCT complete: kV x-rays off. Review the marker offset, then apply the couch shift.', 'ok'); } if (type === 'abort') ui.toast('CBCT aborted: ' + lin.cbct.state.why, 'bad'); });
   function beamTarget() { return PLANS[W.plan].beams[W.beam]; }
   function loadBeam(b) { axes.gantry.tgt = b.g; axes.coll.tgt = b.c; axes.couchRot.tgt = b.t; if (b.shape === 'rect') ap.setRect(b.fw, b.fl); else ap.shape(b.shape); syncSliders(); const st = ap.stats(); refs.fwS.set(st.fx); refs.flS.set(st.fy); }
   const STEPS = [
@@ -210,13 +218,16 @@ export function buildLinacPanels(stage, lin, ui) {
       const d = ui.el('div'); ui.note(d, 'The machine has two imagers. <b>kV</b>: orthogonal source/detector arms (AP + lateral) find the internal marker; the couch is shifted to bring it to the isocentre. <b>MV portal imager</b> (EPID): sits opposite the treatment head and images the beam itself, so it checks the field shape and position. Extend, acquire, then apply the shift.');
       const r1 = ui.el('div'); d.append(r1);
       ui.button(r1, 'Extend kV arms', () => { S.kvTarget = 1; refs.kv.set(true); }, 'ghost'); ui.button(r1, 'Extend MV panel', () => { S.mvTarget = 1; refs.mv.set(true); }, 'ghost');
+      refs.cbctRO = ui.readout(d, 'CBCT');
+      ui.button(d, 'Acquire CBCT (kV on, 200° arc)', () => { const r = lin.cbct.start(); if (!r.ok) return ui.toast(r.why, 'bad'); refs.kv && refs.kv.set(true); ui.toast('CBCT: arms extend, gantry swings to start, then kV x-rays on.', 'ok'); }, 'go');
+      ui.button(d, 'Stop CBCT', () => lin.cbct.abort(), 'ghost');
       ui.button(d, 'Acquire kV AP + lateral', () => { if (S.kvOut < 0.9) return ui.toast('Extend the kV arms first.', 'bad'); W.kvImaged = true; W.shown = 'kv'; drawImg(); ui.toast('kV AP + lateral acquired.', 'ok'); }, 'go');
       ui.button(d, 'Acquire MV portal image', () => { if (S.mvOut < 0.9) return ui.toast('Extend the MV panel first.', 'bad'); W.mvImaged = true; W.shown = 'mv'; drawImg(); ui.toast('MV portal image acquired.', 'ok'); }, 'go');
       imgCanvas = document.createElement('canvas'); imgCanvas.width = 560; imgCanvas.height = 280; imgCanvas.style.cssText = 'width:100%;border-radius:8px;background:#05080c;margin:6px 0'; d.append(imgCanvas); drawImg();
       refs.kvRO = ui.readout(d, 'Marker offset (long / lat / vert)');
       ui.button(d, 'Apply couch shift', () => { if (!W.kvImaged) return ui.toast('Acquire the kV images first.', 'bad'); applyShift(); W.kvApplied = true; ui.toast('Couch moving to the shift position.', 'ok'); }, 'go'); return d; },
-     live: () => { if (refs.kvRO) { const e = markerErr(); refs.kvRO.set(W.kvImaged ? `${mm(e.dx)} / ${mm(e.dz)} / ${mm(e.dy)} mm` : 'not imaged', W.kvImaged && W.kvApplied && e.n < 0.0015 ? 'ok' : ''); } if (W.shown) drawImg(); },
-     checks: () => { const e = markerErr(); return [['kV arms extended', S.kvOut > 0.9 || W.kvImaged], ['kV images acquired', W.kvImaged], ['MV portal image acquired', W.mvImaged], [`Marker error ${(e.n * 1000).toFixed(1)} mm → < 1.5 mm after shift`, W.kvImaged && W.kvApplied && e.n < 0.0015]]; }},
+     live: () => { if (refs.cbctRO) { const c = lin.cbct.state; refs.cbctRO.set({idle: 'idle', extend: 'extending arms…', toStart: 'gantry to start…', scan: 'kV ON  ' + Math.round(c.p * 100) + '%', done: 'complete', abort: 'aborted: ' + c.why}[c.phase], c.phase === 'done' ? 'ok' : c.phase === 'abort' ? 'bad' : ''); } if (refs.kvRO) { const e = markerErr(); refs.kvRO.set(W.kvImaged ? `${mm(e.dx)} / ${mm(e.dz)} / ${mm(e.dy)} mm` : 'not imaged', W.kvImaged && W.kvApplied && e.n < 0.0015 ? 'ok' : ''); } if (W.shown) drawImg(); },
+     checks: () => { const e = markerErr(); return [['kV arms extended', S.kvOut > 0.9 || W.kvImaged], ['kV images / CBCT acquired', W.kvImaged], ['MV portal image acquired', W.mvImaged], [`Marker error ${(e.n * 1000).toFixed(1)} mm → < 1.5 mm after shift`, W.kvImaged && W.kvApplied && e.n < 0.0015]]; }},
     {id: 'beam', title: '4 · Set beam parameters', body: () => {
       const d = ui.el('div'); const b = beamTarget();
       ui.note(d, `Beam ${W.beam + 1}/${PLANS[W.plan].beams.length}: <b>${b.label}</b> — gantry <b>${b.g}°</b>, collimator <b>${b.c}°</b>, couch <b>${b.t}°</b>, ${b.shape === 'rect' ? `field <b>${b.fw} × ${b.fl} cm</b>` : `MLC shape <b>${b.shape}</b>`}. Set them on the Controls tab, or auto-load as a record-and-verify system would.`);

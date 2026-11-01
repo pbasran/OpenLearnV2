@@ -168,8 +168,8 @@ export async function createLinac(stage) {
   axes.couchVrt.val = axes.couchVrt.tgt = ISO.y - 0.20;
   const S = {
     timeScale: 4, energy: 6, fff: false, mu: 100, delivered: 0, beamOn: false, doorOpen: true, fieldLight: true, lasers: true,
-    beamVis: true, doseView: false, slicePlane: 'axial', coverOpacity: 1, kvOut: 0, kvTarget: 0, mvOut: 0, mvTarget: 0, status: 'READY', alerts: [], dirty: true,
-    interlock: true, clearance: 0.04, selected: null, eAnim: true, cmdLog: [],
+    beamVis: true, doseView: false, slicePlane: 'axial', coverOpacity: 1, kvOut: 0, kvTarget: 0, kvXray: false, mvOut: 0, mvTarget: 0, status: 'READY', alerts: [], dirty: true,
+    interlock: true, envelope: true, hotUntil: 0, clearance: 0.04, selected: null, eAnim: true, cmdLog: [],
   };
 
   // --- collision geometry ---
@@ -178,6 +178,45 @@ export async function createLinac(stage) {
   const kvVerts = []; kv.updateMatrixWorld(true);
   { const inv = gantryInner.matrixWorld.clone().invert(); const v = new T.Vector3();
     kv.traverse((m) => { if (m.isMesh) { const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i += 2) { v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld).applyMatrix4(inv); kvVerts.push(v.clone()); } } }); }
+
+  // ---------- kV CBCT rig: tube + flat-panel detector carried on the kV arm tips, on the isocentre axis (source 100 cm, detector 55 cm on the opposite side) ----------
+  const KV = {srcZ: 1.0, detZ: -0.55, tipX: 0.509, tipY: 1.031, tipZ: 0.94, half: 0.15};
+  const kvRig = new T.Group(); kvRig.name = 'kv_rig'; kvRig.visible = false; gantryInner.add(kvRig);
+  const mkRod = () => { const m = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, 1, 12), M.paintGrey()); m.castShadow = true; kvRig.add(m); return m; };
+  const rodS = mkRod(), rodD = mkRod();
+  const srcBox = new T.Mesh(new RoundedBoxGeometry(0.17, 0.2, 0.27, 3, 0.03), M.paintWhite()); srcBox.castShadow = true; kvRig.add(srcBox);
+  const srcColl = new T.Mesh(new T.BoxGeometry(0.11, 0.13, 0.03), M.steelDark()); kvRig.add(srcColl);
+  const detBox = new T.Mesh(new RoundedBoxGeometry(2 * KV.half + 0.03, 2 * KV.half + 0.03, 0.035, 3, 0.01), M.paintWhite()); detBox.castShadow = true; kvRig.add(detBox);
+  const detFace = new T.Mesh(new T.PlaneGeometry(2 * KV.half - 0.01, 2 * KV.half - 0.01), new T.MeshBasicMaterial({color: 0x0f3a44})); kvRig.add(detFace);
+  const kvBeamGeo = new T.BufferGeometry(); kvBeamGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(5 * 3), 3)); kvBeamGeo.setIndex([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1]);
+  const kvBeamMat = new T.MeshBasicMaterial({color: 0xb27bff, transparent: true, opacity: 0.2, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false});
+  const kvBeam = new T.Mesh(kvBeamGeo, kvBeamMat); kvBeam.frustumCulled = false; kvBeam.renderOrder = 5; kvBeam.visible = false; kvRig.add(kvBeam);
+  const kvEdgeGeo = new T.BufferGeometry(); kvEdgeGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(8 * 3), 3)); kvEdgeGeo.setIndex([0, 1, 0, 2, 0, 3, 0, 4, 1, 2, 2, 3, 3, 4, 4, 1].map((i) => i));
+  kvEdgeGeo.setAttribute('position', kvBeamGeo.attributes.position);
+  const kvEdges = new T.LineSegments(kvEdgeGeo, new T.LineBasicMaterial({color: 0xd9b8ff, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false})); kvEdges.frustumCulled = false; kvEdges.renderOrder = 6; kvEdges.visible = false; kvRig.add(kvEdges);
+  const NPH = 90, phU = new Float32Array(NPH), phV = new Float32Array(NPH), phT = new Float32Array(NPH);
+  for (let i = 0; i < NPH; i++) { phU[i] = Math.random() * 2 - 1; phV[i] = Math.random() * 2 - 1; phT[i] = Math.random(); }
+  const phGeo = new T.BufferGeometry(); phGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(NPH * 3), 3));
+  const phPts = new T.Points(phGeo, new T.PointsMaterial({color: 0xf0e0ff, size: 0.012, transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false})); phPts.frustumCulled = false; phPts.renderOrder = 7; phPts.visible = false; kvRig.add(phPts);
+  const _ya = new T.Vector3(0, 1, 0), _d = new T.Vector3(), _q = new T.Quaternion();
+  const placeRod = (m, a, b) => { _d.subVectors(b, a); const L = _d.length(); m.position.copy(a).addScaledVector(_d, 0.5); m.scale.set(1, L, 1); m.quaternion.copy(_q.setFromUnitVectors(_ya, _d.normalize())); };
+  function placeRig(k, xray, tms) {
+    kvRig.visible = k > 0.07; if (!kvRig.visible) return;
+    const fz = KV.srcZ * k, dz = KV.detZ * k, h = KV.half;
+    srcBox.position.set(ISO.x, ISO.y, fz + 0.135); srcColl.position.set(ISO.x, ISO.y, fz - 0.015);
+    detBox.position.set(ISO.x, ISO.y, dz - 0.0175); detFace.position.set(ISO.x, ISO.y, dz + 0.0008);
+    placeRod(rodS, new T.Vector3(KV.tipX, KV.tipY, KV.tipZ * k), new T.Vector3(ISO.x, ISO.y + 0.09, fz + 0.2));
+    placeRod(rodD, new T.Vector3(KV.tipX, KV.tipY, -KV.tipZ * k), new T.Vector3(ISO.x, ISO.y + 0.15, dz - 0.035));
+    kvBeam.visible = kvEdges.visible = phPts.visible = xray; if (!xray) return;
+    const P = kvBeamGeo.attributes.position.array; P.set([ISO.x, ISO.y, fz, ISO.x - h, ISO.y - h, dz, ISO.x + h, ISO.y - h, dz, ISO.x + h, ISO.y + h, dz, ISO.x - h, ISO.y + h, dz]); kvBeamGeo.attributes.position.needsUpdate = true;
+    kvBeamMat.opacity = 0.16 + 0.07 * Math.sin(tms / 45);
+    const Q = phGeo.attributes.position.array, tt = tms / 1000;
+    for (let i = 0; i < NPH; i++) { const t = (phT[i] + tt * 1.6) % 1; Q[i * 3] = ISO.x + phU[i] * h * t; Q[i * 3 + 1] = ISO.y + phV[i] * h * t; Q[i * 3 + 2] = fz + (dz - fz) * t; }
+    phGeo.attributes.position.needsUpdate = true;
+  }
+  const rigPts = []; { const h = KV.half;
+    for (const x of [-h, 0, h]) for (const y of [-h, 0, h]) for (const z of [KV.detZ, KV.detZ - 0.035]) rigPts.push(new T.Vector3(ISO.x + x, ISO.y + y, z));
+    for (const x of [-0.085, 0.085]) for (const y of [-0.1, 0, 0.1]) for (const z of [KV.srcZ - 0.03, KV.srcZ + 0.27]) rigPts.push(new T.Vector3(ISO.x + x, ISO.y + y, z)); }
   const mvPts = []; { const y0 = ISO.y - MV_DROP - 0.06, y1 = ISO.y - MV_DROP;
     for (let ix = -1; ix <= 1; ix += 0.5) for (let iz = -1; iz <= 1; iz += 0.5) for (const y of [y0, y1]) mvPts.push(new T.Vector3(ISO.x + ix * 0.26, y, iz * 0.26));
     for (let x = ISO.x; x <= ISO.x + MV_LEN - 0.15; x += 0.1) for (const z of [-0.08, 0.08]) mvPts.push(new T.Vector3(x, y0 - 0.03, z)); }
@@ -206,6 +245,10 @@ export async function createLinac(stage) {
       tmpV.copy(p); tmpV.z *= S.kvOut; tmpV.applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor (kV arm)';
       tmpV.copy(p); tmpV.z *= S.kvOut; tmpV.applyMatrix4(tmpM); if (tb.containsPoint(tmpV) || pb.containsPoint(tmpV)) return 'couch / phantom (kV arm)';
     }
+    if (S.kvOut > 0.5) for (const p of rigPts) {
+      tmpV.copy(p); tmpV.z *= S.kvOut; tmpV.applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor (kV tube/detector)';
+      tmpV.copy(p); tmpV.z *= S.kvOut; tmpV.applyMatrix4(tmpM); if (tb.containsPoint(tmpV) || pb.containsPoint(tmpV)) return 'couch / phantom (kV tube/detector)';
+    }
     if (S.mvOut > 0.5) for (const p of mvPts) {
       tmpV.copy(p); tmpV.x += mv.position.x; tmpV.applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor (MV imager)';
       tmpV.copy(p); tmpV.x += mv.position.x; tmpV.applyMatrix4(tmpM); if (tb.containsPoint(tmpV) || pb.containsPoint(tmpV)) return 'couch / phantom (MV imager)';
@@ -221,7 +264,7 @@ export async function createLinac(stage) {
   }
   applyAxes();
 
-  const cbs = {change: [], collision: []};
+  const cbs = {change: [], collision: [], cbct: []};
   let lastDoseUpdate = 0, lastSig = '';
   /* ---------- console command log: every instruction given to the machine (from the panel, workflow or Skip) is echoed on the treatment console ---------- */
   const cmdWatch = {t: 0, axes: {}, pend: {}, last: {}};
@@ -257,6 +300,8 @@ export async function createLinac(stage) {
     // kV arm motion
     const dk = S.kvTarget - S.kvOut; if (Math.abs(dk) > 1e-3) { S.kvOut += Math.sign(dk) * Math.min(Math.abs(dk), 0.5 * ts * dt); moving = true; } else S.kvOut = S.kvTarget;
     kv.scale.z = Math.max(0.06, S.kvOut); kv.visible = S.kvOut > 0.07;
+    cbctStep(hit);
+    placeRig(S.kvOut, S.kvXray, performance.now());
     const dm = S.mvTarget - S.mvOut; if (Math.abs(dm) > 1e-3) { S.mvOut += Math.sign(dm) * Math.min(Math.abs(dm), 0.5 * ts * dt); moving = true; } else S.mvOut = S.mvTarget;
     mv.position.x = (1 - S.mvOut) * (MV_LEN + 0.1); mv.visible = S.mvOut > 0.07;
     // beam on: deliver MU
@@ -273,12 +318,13 @@ export async function createLinac(stage) {
     for (const c of covers) c.castShadow = S.coverOpacity > 0.5;
     world.updateMatrixWorld(true);
     const yAxis = new T.Vector3(1, 0, 0).transformDirection(collInner.matrixWorld); // IEC-Y (world +x at coll 0)
-    head.update(yAxis);
+    if (hit) S.hotUntil = performance.now() + 1500;
+    head.update(yAxis); head.setEnvelope(S.envelope && !stage.renderer.xr.isPresenting, performance.now() < S.hotUntil);
     head.setBeam({visible: S.beamVis && (S.beamOn || S.beamPreview), intensity: S.beamOn ? 1 : 0.55});
     head.setFieldLight(S.fieldLight && !S.beamOn);
     couch.updateLasers(S.lasers);
     { const goal = -ffSlotZ(ffIndex()); if (ffPos === null) ffPos = goal; ffPos += (goal - ffPos) * Math.min(1, dt * 4 * Math.max(1, S.timeScale / 4)); if (Math.abs(goal - ffPos) < 0.0005) ffPos = goal; ffCar.position.z = ffPos; }
-    room.flashSign(S.beamOn, performance.now());
+    room.flashSign(S.beamOn || S.kvXray, performance.now());
     { const on = S.beamOn && Math.abs(axes.gantry.val) < 1.5 && S.coverOpacity < 0.3; eggMesh.visible = on; if (on) eggMesh.material.opacity = 0.55 + 0.25 * Math.sin(performance.now() / 260); }
     eBeam.update(dt, S.eAnim && (E_PARTS.includes(S.selected) || (S.beamOn && S.coverOpacity < 0.3))); room.wallLasers.visible = S.lasers; room.console.update(S, axes, S.energy);
     // dose slice refresh (throttled)
@@ -289,6 +335,25 @@ export async function createLinac(stage) {
     cbs.change.forEach((f) => f(moving));
   }
 
+
+  // ---------- CBCT sequence: extend arms -> gantry to start -> kV on, rotate through a 200 degree arc -> kV off ----------
+  const CB = {phase: 'idle', p: 0, start: -100, end: 100, why: ''};
+  const cbEmit = (type) => cbs.cbct.forEach((f) => f(type, CB));
+  function cbctStart() {
+    if (CB.phase !== 'idle' && CB.phase !== 'done' && CB.phase !== 'abort') return {ok: false, why: 'A CBCT is already running.'};
+    if (S.doorOpen) return {ok: false, why: 'Close the shielding door first (interlock).'};
+    if (Math.abs(axes.couchRot.val) > 1) return {ok: false, why: 'Set the couch rotation to 0 degrees for CBCT.'};
+    S.kvTarget = 1; S.mvTarget = 0; CB.phase = 'extend'; CB.p = 0; CB.why = ''; logCmd('CBCT: extending kV arms'); cbEmit('start'); return {ok: true};
+  }
+  function cbctAbort(why) { if (CB.phase === 'idle' || CB.phase === 'done' || CB.phase === 'abort') return; S.kvXray = false; axes.gantry.tgt = axes.gantry.val; CB.phase = 'abort'; CB.why = why; S.status = 'CBCT ABORTED'; logCmd('CBCT aborted: ' + why, true); cbEmit('abort'); }
+  function cbctStep(hit) {
+    const run = CB.phase === 'extend' || CB.phase === 'toStart' || CB.phase === 'scan'; if (!run) return;
+    if (hit && hit.axis === 'gantry') return cbctAbort('collision interlock: ' + hit.what);
+    if (S.doorOpen) return cbctAbort('shielding door opened');
+    if (CB.phase === 'extend') { S.status = 'KV ARMS EXTENDING'; if (S.kvOut > 0.99) { axes.gantry.tgt = CB.start; CB.phase = 'toStart'; } }
+    else if (CB.phase === 'toStart') { S.status = 'POSITIONING'; if (Math.abs(axes.gantry.val - CB.start) < 0.3) { CB.phase = 'scan'; S.kvXray = true; axes.gantry.tgt = CB.end; logCmd('CBCT: kV x-rays ON, gantry ' + CB.start + ' to ' + CB.end + ' deg'); cbEmit('scan'); } }
+    else { S.status = 'KV X-RAY ON'; CB.p = Math.min(1, Math.max(0, (axes.gantry.val - CB.start) / (CB.end - CB.start))); if (Math.abs(axes.gantry.val - CB.end) < 0.3) { S.kvXray = false; CB.phase = 'done'; CB.p = 1; S.status = 'READY'; logCmd('CBCT: acquisition complete, kV x-rays OFF'); cbEmit('done'); } else cbEmit('progress'); }
+  }
   const ctx = {headInv: new T.Matrix4(), phInv: new T.Matrix4(), half: new T.Vector3(PH.size / 2, PH.size / 2, PH.size / 2), srcHead: head.src.clone(), srcPh: new T.Vector3()};
   function prepareCtx() {
     world.updateMatrixWorld(true);
@@ -346,7 +411,7 @@ export async function createLinac(stage) {
 
   return {
     world, axes, S, ap, dose, head, couch, room, registry, covers, ctx, phCenter, slice, kv, mv, stand, gantryInner, collInner,
-    update, collision, caxInfo, prepareCtx, selectPart, setCutaway, renderDose,
+    cbct: {start: cbctStart, abort: () => cbctAbort('stopped by operator'), state: CB}, update, collision, caxInfo, prepareCtx, selectPart, setCutaway, renderDose,
     on: (ev, f) => cbs[ev].push(f),
     marks: () => couch.marks(),
     isoWorldModel: () => new T.Vector3(ISO.x, ISO.y, 0),
