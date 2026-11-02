@@ -140,6 +140,9 @@ export async function createLinac(stage) {
   const kTop = 1.0145 + dropStand.y;
   pipe(1.62 - kTop, 0.03, 1.40, (1.62 + kTop) / 2, -0.0, 'y', stand);
   pipe(0.12, 0.05, 1.17, ISO.y, 0, 'x', gantryInner);
+  // static RF link: from the rotary joint on the gantry axis out to the klystron / circulator pipe; it ends on that pipe and does not pass beyond it
+  { const x0 = 1.23, x1 = 1.40; const link = pipe(x1 - x0, 0.03, (x0 + x1) / 2, ISO.y, 0, 'x', stand); link.userData.rfLink = true;
+    const tee = new T.Mesh(new T.SphereGeometry(0.038, 16, 12), pipeMat); tee.position.set(x1, ISO.y, 0); tee.castShadow = true; stand.add(tee); tee.userData.rfLink = true; }
   // RF waveguide: klystron -> circulator -> rotary joint -> vertical feed on the gantry -> a top and a bottom header that run along the accelerating waveguide; each header
   // drops/rises through two stubs into the narrow joints between the side-coupled cavities (two ports on top, two underneath), instead of ending on the gun axis
   { const WG_Y = 1.769, WG_R = 0.117, RF_TOP = WG_Y + 0.235, RF_BOT = WG_Y - 0.235, PORTS = [0.54, 0.84], FX = 1.12, PR = 0.028;
@@ -152,8 +155,9 @@ export async function createLinac(stage) {
         const fl = new T.Mesh(new T.CylinderGeometry(PR * 1.9, PR * 1.9, 0.012, 24), pipeMat); fl.position.set(px, ye - sgn * 0.006, 0); gantryInner.add(fl); }
     } }
   pipe(1.62 - ISO.y, 0.03, 1.40, ISO.y + (1.62 - ISO.y) / 2, -0.0, 'y', stand).visible = false;
-  for (const m of [...stand.children]) if (m.geometry && m.geometry.type === 'CylinderGeometry') register('04_Circulator', m);
+  for (const m of [...stand.children]) if (m.geometry && m.geometry.type === 'CylinderGeometry' && !m.userData.rfLink) register('04_Circulator', m);
   gantryInner.traverse((m) => { if (m.isMesh && (m.geometry.type === 'CylinderGeometry' || m.geometry.type === 'SphereGeometry') && m.material === pipeMat) register('RF_Waveguide', m); });
+  stand.children.forEach((m) => { if (m.userData.rfLink) register('RF_Waveguide', m); });
 
   const gdisp = createGantryDisplay({x: 0.975, y: ISO.y}); world.add(gdisp.mesh);
   // ---------- collimation head (jaws + MLC + light field + beam) ----------
