@@ -140,11 +140,20 @@ export async function createLinac(stage) {
   const kTop = 1.0145 + dropStand.y;
   pipe(1.62 - kTop, 0.03, 1.40, (1.62 + kTop) / 2, -0.0, 'y', stand);
   pipe(0.12, 0.05, 1.17, ISO.y, 0, 'x', gantryInner);
-  const feedH = 1.77 - ISO.y; pipe(feedH, 0.028, 1.12, ISO.y + feedH / 2, 0, 'y', gantryInner);
-  pipe(1.12 - 1.076, 0.028, 1.098, 1.77, 0, 'x', gantryInner);
+  // RF waveguide: klystron -> circulator -> rotary joint -> vertical feed on the gantry -> a top and a bottom header that run along the accelerating waveguide; each header
+  // drops/rises through two stubs into the narrow joints between the side-coupled cavities (two ports on top, two underneath), instead of ending on the gun axis
+  { const WG_Y = 1.769, WG_R = 0.117, RF_TOP = WG_Y + 0.235, RF_BOT = WG_Y - 0.235, PORTS = [0.54, 0.84], FX = 1.12, PR = 0.028;
+    const feedTop = RF_TOP - ISO.y; pipe(feedTop, PR, FX, ISO.y + feedTop / 2, 0, 'y', gantryInner);
+    const joint = (x, y) => { const m = new T.Mesh(new T.SphereGeometry(PR * 1.25, 16, 12), pipeMat); m.position.set(x, y, 0); m.castShadow = true; gantryInner.add(m); };
+    const xmid = (FX + PORTS[0]) / 2, xlen = FX - PORTS[0];
+    for (const [yh, sgn] of [[RF_TOP, -1], [RF_BOT, 1]]) {
+      pipe(xlen, PR, xmid, yh, 0, 'x', gantryInner); joint(FX, yh);
+      for (const px of PORTS) { const ye = WG_Y - sgn * WG_R, L = Math.abs(yh - ye); pipe(L, PR, px, (yh + ye) / 2, 0, 'y', gantryInner); joint(px, yh);
+        const fl = new T.Mesh(new T.CylinderGeometry(PR * 1.9, PR * 1.9, 0.012, 24), pipeMat); fl.position.set(px, ye - sgn * 0.006, 0); gantryInner.add(fl); }
+    } }
   pipe(1.62 - ISO.y, 0.03, 1.40, ISO.y + (1.62 - ISO.y) / 2, -0.0, 'y', stand).visible = false;
   for (const m of [...stand.children]) if (m.geometry && m.geometry.type === 'CylinderGeometry') register('04_Circulator', m);
-  gantryInner.traverse((m) => { if (m.isMesh && m.geometry.type === 'CylinderGeometry' && m.material === pipeMat) register('06_Waveguide_Split', m); });
+  gantryInner.traverse((m) => { if (m.isMesh && (m.geometry.type === 'CylinderGeometry' || m.geometry.type === 'SphereGeometry') && m.material === pipeMat) register('RF_Waveguide', m); });
 
   const gdisp = createGantryDisplay({x: 0.975, y: ISO.y}); world.add(gdisp.mesh);
   // ---------- collimation head (jaws + MLC + light field + beam) ----------
@@ -179,19 +188,32 @@ export async function createLinac(stage) {
   // --- collision geometry ---
   const headBox = new T.Box3(new T.Vector3(-0.44, 1.285, -0.40), new T.Vector3(0.31, 2.03, 0.40));
   const armBox = new T.Box3(new T.Vector3(0.25, 1.43, -0.31), new T.Vector3(1.25, 1.99, 0.31));
-  const kvVerts = []; kv.updateMatrixWorld(true);
-  { const inv = gantryInner.matrixWorld.clone().invert(); const v = new T.Vector3();
-    kv.traverse((m) => { if (m.isMesh) { const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i += 2) { v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld).applyMatrix4(inv); kvVerts.push(v.clone()); } } }); }
+  // ---------- kV arms: the ORIGINAL arm mesh is warped so its two end blocks sit on the kV axis (source at +Z, detector at -Z, through the isocentre) ----------
+  // No extra parts are added: the arm end blocks themselves are the kV tube housing and the flat-panel detector.
+  const kvMesh = (() => { let m; kv.traverse((o) => { if (o.isMesh) m = o; }); return m; })();
+  { const g = kvMesh.geometry, pa = g.attributes.position, f = new Float32Array(pa.count * 3);   // the GLB stores quantised (meshopt) positions: convert to float before baking / warping
+    for (let i = 0; i < pa.count; i++) { f[i * 3] = pa.getX(i); f[i * 3 + 1] = pa.getY(i); f[i * 3 + 2] = pa.getZ(i); }
+    g.setAttribute('position', new T.BufferAttribute(f, 3)); }
+  kvMesh.updateMatrix(); kvMesh.geometry.applyMatrix4(kvMesh.matrix); kvMesh.position.set(0, 0, 0); kvMesh.quaternion.identity(); kvMesh.scale.set(1, 1, 1); kvMesh.updateMatrix(); kvMesh.frustumCulled = false;
+  const kvPos = kvMesh.geometry.attributes.position, kv0 = Float32Array.from(kvPos.array);   // kv0: original (fully extended) vertices, gantry-inner coordinates
+  const KV = {srcZ: 1.0, detZ: -0.55, srcIn: 0.97, half: 0.12};   // beam source (apex) 100 cm from the isocentre, inside the tube housing; detector face 55 cm on the other side
+  const kvBlk = {p: {mn: [9, 9, 9], mx: [-9, -9, -9]}, m: {mn: [9, 9, 9], mx: [-9, -9, -9]}};
+  for (let i = 0; i < kvPos.count; i++) { const z = kv0[i * 3 + 2]; if (Math.abs(z) < 0.62) continue; const b = z > 0 ? kvBlk.p : kvBlk.m; for (let a = 0; a < 3; a++) { b.mn[a] = Math.min(b.mn[a], kv0[i * 3 + a]); b.mx[a] = Math.max(b.mx[a], kv0[i * 3 + a]); } }
+  const kvIn = Math.abs(kvBlk.p.mn[2]);   // original |z| of the end blocks' inner (iso-facing) face
+  const kvShift = {dx: ISO.x - (kvBlk.p.mn[0] + kvBlk.p.mx[0]) / 2, dy: ISO.y - (kvBlk.p.mn[1] + kvBlk.p.mx[1]) / 2, dzS: KV.srcIn - kvIn, dzD: Math.abs(KV.detZ) - kvIn};
+  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  function warpKv(k) {
+    const a = kvPos.array, kk = Math.max(0.06, k);
+    for (let i = 0; i < kvPos.count; i++) {
+      const x = kv0[i * 3], y = kv0[i * 3 + 1], z = kv0[i * 3 + 2], s = z >= 0 ? 1 : -1, az = Math.abs(z), w = sm(0.2, kvIn, az);   // w: 0 at the arm root, 1 on the end block
+      a[i * 3] = x + w * kvShift.dx * kk; a[i * 3 + 1] = y + w * kvShift.dy * kk; a[i * 3 + 2] = s * (az + w * (s > 0 ? kvShift.dzS : kvShift.dzD)) * kk;
+    }
+    kvPos.needsUpdate = true;
+  }
+  warpKv(1); 
 
-  // ---------- kV CBCT rig: tube + flat-panel detector carried on the kV arm tips, on the isocentre axis (source 100 cm, detector 55 cm on the opposite side) ----------
-  const KV = {srcZ: 1.0, detZ: -0.55, tipX: 0.509, tipY: 1.031, tipZ: 0.94, half: 0.15};
+  // ---------- kV CBCT beam: pyramid from the source (arm end block, +Z) to the detector face (arm end block, -Z), photons, edges ----------
   const kvRig = new T.Group(); kvRig.name = 'kv_rig'; kvRig.visible = false; gantryInner.add(kvRig);
-  const mkRod = () => { const m = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, 1, 12), M.paintGrey()); m.castShadow = true; kvRig.add(m); return m; };
-  const rodS = mkRod(), rodD = mkRod();
-  const srcBox = new T.Mesh(new RoundedBoxGeometry(0.17, 0.2, 0.27, 3, 0.03), M.paintWhite()); srcBox.castShadow = true; kvRig.add(srcBox);
-  const srcColl = new T.Mesh(new T.BoxGeometry(0.11, 0.13, 0.03), M.steelDark()); kvRig.add(srcColl);
-  const detBox = new T.Mesh(new RoundedBoxGeometry(2 * KV.half + 0.03, 2 * KV.half + 0.03, 0.035, 3, 0.01), M.paintWhite()); detBox.castShadow = true; kvRig.add(detBox);
-  const detFace = new T.Mesh(new T.PlaneGeometry(2 * KV.half - 0.01, 2 * KV.half - 0.01), new T.MeshBasicMaterial({color: 0x0f3a44})); kvRig.add(detFace);
   const kvBeamGeo = new T.BufferGeometry(); kvBeamGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(5 * 3), 3)); kvBeamGeo.setIndex([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1]);
   const kvBeamMat = new T.MeshBasicMaterial({color: 0xb27bff, transparent: true, opacity: 0.2, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false});
   const kvBeam = new T.Mesh(kvBeamGeo, kvBeamMat); kvBeam.frustumCulled = false; kvBeam.renderOrder = 5; kvBeam.visible = false; kvRig.add(kvBeam);
@@ -202,15 +224,9 @@ export async function createLinac(stage) {
   for (let i = 0; i < NPH; i++) { phU[i] = Math.random() * 2 - 1; phV[i] = Math.random() * 2 - 1; phT[i] = Math.random(); }
   const phGeo = new T.BufferGeometry(); phGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(NPH * 3), 3));
   const phPts = new T.Points(phGeo, new T.PointsMaterial({color: 0xf0e0ff, size: 0.012, transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false})); phPts.frustumCulled = false; phPts.renderOrder = 7; phPts.visible = false; kvRig.add(phPts);
-  const _ya = new T.Vector3(0, 1, 0), _d = new T.Vector3(), _q = new T.Quaternion();
-  const placeRod = (m, a, b) => { _d.subVectors(b, a); const L = _d.length(); m.position.copy(a).addScaledVector(_d, 0.5); m.scale.set(1, L, 1); m.quaternion.copy(_q.setFromUnitVectors(_ya, _d.normalize())); };
   function placeRig(k, xray, tms) {
     kvRig.visible = k > 0.07; if (!kvRig.visible) return;
     const fz = KV.srcZ * k, dz = KV.detZ * k, h = KV.half;
-    srcBox.position.set(ISO.x, ISO.y, fz + 0.135); srcColl.position.set(ISO.x, ISO.y, fz - 0.015);
-    detBox.position.set(ISO.x, ISO.y, dz - 0.0175); detFace.position.set(ISO.x, ISO.y, dz + 0.0008);
-    placeRod(rodS, new T.Vector3(KV.tipX, KV.tipY, KV.tipZ * k), new T.Vector3(ISO.x, ISO.y + 0.09, fz + 0.2));
-    placeRod(rodD, new T.Vector3(KV.tipX, KV.tipY, -KV.tipZ * k), new T.Vector3(ISO.x, ISO.y + 0.15, dz - 0.035));
     kvBeam.visible = kvEdges.visible = phPts.visible = xray; if (!xray) return;
     const P = kvBeamGeo.attributes.position.array; P.set([ISO.x, ISO.y, fz, ISO.x - h, ISO.y - h, dz, ISO.x + h, ISO.y - h, dz, ISO.x + h, ISO.y + h, dz, ISO.x - h, ISO.y + h, dz]); kvBeamGeo.attributes.position.needsUpdate = true;
     kvBeamMat.opacity = 0.16 + 0.07 * Math.sin(tms / 45);
@@ -218,9 +234,6 @@ export async function createLinac(stage) {
     for (let i = 0; i < NPH; i++) { const t = (phT[i] + tt * 1.6) % 1; Q[i * 3] = ISO.x + phU[i] * h * t; Q[i * 3 + 1] = ISO.y + phV[i] * h * t; Q[i * 3 + 2] = fz + (dz - fz) * t; }
     phGeo.attributes.position.needsUpdate = true;
   }
-  const rigPts = []; { const h = KV.half;
-    for (const x of [-h, 0, h]) for (const y of [-h, 0, h]) for (const z of [KV.detZ, KV.detZ - 0.035]) rigPts.push(new T.Vector3(ISO.x + x, ISO.y + y, z));
-    for (const x of [-0.085, 0.085]) for (const y of [-0.1, 0, 0.1]) for (const z of [KV.srcZ - 0.03, KV.srcZ + 0.27]) rigPts.push(new T.Vector3(ISO.x + x, ISO.y + y, z)); }
   const mvPts = []; { const y0 = ISO.y - MV_DROP - 0.06, y1 = ISO.y - MV_DROP;
     for (let ix = -1; ix <= 1; ix += 0.5) for (let iz = -1; iz <= 1; iz += 0.5) for (const y of [y0, y1]) mvPts.push(new T.Vector3(ISO.x + ix * 0.26, y, iz * 0.26));
     for (let x = ISO.x; x <= ISO.x + MV_LEN - 0.15; x += 0.1) for (const z of [-0.08, 0.08]) mvPts.push(new T.Vector3(x, y0 - 0.03, z)); }
@@ -245,13 +258,9 @@ export async function createLinac(stage) {
       tmpV.copy(p).applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor';
       tmpV.copy(p).applyMatrix4(tmpM); if (tb.containsPoint(tmpV) || pb.containsPoint(tmpV)) return 'couch / phantom';
     }
-    if (S.kvOut > 0.5) for (const p of kvVerts) {
-      tmpV.copy(p); tmpV.z *= S.kvOut; tmpV.applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor (kV arm)';
-      tmpV.copy(p); tmpV.z *= S.kvOut; tmpV.applyMatrix4(tmpM); if (tb.containsPoint(tmpV) || pb.containsPoint(tmpV)) return 'couch / phantom (kV arm)';
-    }
-    if (S.kvOut > 0.5) for (const p of rigPts) {
-      tmpV.copy(p); tmpV.z *= S.kvOut; tmpV.applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor (kV tube/detector)';
-      tmpV.copy(p); tmpV.z *= S.kvOut; tmpV.applyMatrix4(tmpM); if (tb.containsPoint(tmpV) || pb.containsPoint(tmpV)) return 'couch / phantom (kV tube/detector)';
+    if (S.kvOut > 0.5) for (let i = 0; i < kvPos.count; i += 2) {   // current (warped) kV arm vertices, incl. the source housing and the detector
+      tmpV.fromBufferAttribute(kvPos, i).applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor (kV arm)';
+      tmpV.fromBufferAttribute(kvPos, i).applyMatrix4(tmpM); if (tb.containsPoint(tmpV) || pb.containsPoint(tmpV)) return 'couch / phantom (kV arm)';
     }
     if (S.mvOut > 0.5) for (const p of mvPts) {
       tmpV.copy(p); tmpV.x += mv.position.x; tmpV.applyMatrix4(worldMat); if (tmpV.y < FLOOR_Y + 0.0) return 'floor (MV imager)';
@@ -303,7 +312,7 @@ export async function createLinac(stage) {
     if (hit) { S.status = 'INTERLOCK'; events.emit('interlock', {kind: 'collision', detail: String(hit && hit.name || hit)}); cbs.collision.forEach((f) => f(hit)); }
     // kV arm motion
     const dk = S.kvTarget - S.kvOut; if (Math.abs(dk) > 1e-3) { S.kvOut += Math.sign(dk) * Math.min(Math.abs(dk), 0.5 * ts * dt); moving = true; } else S.kvOut = S.kvTarget;
-    kv.scale.z = Math.max(0.06, S.kvOut); kv.visible = S.kvOut > 0.07;
+    warpKv(S.kvOut); kv.visible = S.kvOut > 0.07;
     cbctStep(hit);
     placeRig(S.kvOut, S.kvXray, performance.now());
     const dm = S.mvTarget - S.mvOut; if (Math.abs(dm) > 1e-3) { S.mvOut += Math.sign(dm) * Math.min(Math.abs(dm), 0.5 * ts * dt); moving = true; } else S.mvOut = S.mvTarget;

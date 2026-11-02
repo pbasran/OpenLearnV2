@@ -54,8 +54,16 @@ const modelDescriptions =
     'Index': '5',
     'Modelname': '06_Waveguide_Split',
     'Title': 'The Linac Gantry System',
-    'Subtitle': 'Waveguide Accelerator',
+    'Subtitle': 'Accelerating Waveguide',
     'Description': 'After electrons from the electron gun are emitted, the waveguide accelerator accelerates electrons along the length of an evacuated tube. An accelerating waveguide consists of cavities separated by donut-shaped discs. High-frequency RF pulses from the klystron energize the cavities. Through the careful timing of RF pulses between each cavity, each cavity generates an oscillating electric field based on the RF pulses, exerting a force on the electrons, causing them to accelerate through the cavity. Some linac waveguides continuously accelerate electrons as they travel through the cavities (traveling waveguide), like surfing on an ocean wave. Others use reflected microwaves between cavities rapidly to create standing waves (standing waveguide), like how a guitar string vibrates. A standing waveguide, smaller than a traveling waveguide, is shown here and cannot accelerate electrons to high energies (above 10 Mega Electron Volts). The shape and arrangement of the cavities and the electric field pattern determine the path and acceleration of the electrons.\n\n To create a radiation beam that can produce about 5 Gray per minute from a 6 MegaVolt, or 6 MeV, radiation beam (typical of a modern linear accelerator), the average electron beam current needs to be about 125 microAmps, which amounts to about 0.75 kiloWatts of power, which is about the total power consumption in a small LED bulb! But the energy required to power the waveguide is in the range of Millions of Volts. Thus, most of the power needed to generate useable radiation beams is powering the waveguide.\n\n <a href="https://www.medicalphysics.org/documents/Mcdermott2_ch9.pdf">Read more</a> \n\n <a href="https://oncologymedicalphysics.com/linac-subsystem-design/">Read more</a><br><br><i>Animation:</i> with this part selected, bunches of electrons (cyan) are shown leaving the gun, gaining energy along the waveguide, turning through the 270° bending magnet and striking the target, where yellow photons leave downward in a forward-peaked cone. Schematic only; real electrons travel at nearly the speed of light.',
+  },
+
+  {
+    'Index': '5b',
+    'Modelname': 'RF_Waveguide',
+    'Title': 'The Linac Gantry System',
+    'Subtitle': 'RF Waveguide',
+    'Description': 'The RF waveguide is the hollow, pressurised metal duct that carries the microwave power from the klystron, through the circulator and the rotary joint at the gantry axis, up to the accelerating waveguide. It does not accelerate electrons itself. At the accelerating waveguide it divides into a top and a bottom branch, and each branch feeds the structure through two ports at the narrow joints between the cavities, so the RF power is delivered along the accelerating structure rather than into its end. The gun end is kept free for the electron gun. (Teaching model: the port positions are schematic.)'
   },
 
   {
