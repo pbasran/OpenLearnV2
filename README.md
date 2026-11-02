@@ -1,4 +1,4 @@
-# Open-source WebXR simulation of CT and linear-accelerator operation, imaging, physics and clinical workflows for medical-physics education.
+# OpenLearn V2 — interactive CT and linear-accelerator simulation for medical-physics education
 
 ## [▶ Launch the viewer](https://pbasran.github.io/OpenLearnV2/)
 
