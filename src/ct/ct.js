@@ -264,7 +264,7 @@ export async function createCT(stage) {
   function sliceParams(s) {
     const sec = sectionAt(s), b = sec.ell[0][3] / 100, yTop = axes.tableH.val, yc = yTop + b;
     const off = Math.hypot(S.zOff * 100, (yc - AX_Y) * 100);
-    return {section: sec, kvp: S.scanRes?.kvp ?? S.kvp, mAs: S.scanRes?.mAs ?? S.mAs, pitch: S.scanRes?.pitch ?? S.pitch, thick: S.scanRes?.thick ?? S.thick, kernel: S.scanRes?.kernel ?? S.kernel, fov: S.scanRes?.fov ?? S.fov,
+    return {section: sec, sPos: s, kvp: S.scanRes?.kvp ?? S.kvp, mAs: S.scanRes?.mAs ?? S.mAs, pitch: S.scanRes?.pitch ?? S.pitch, thick: S.scanRes?.thick ?? S.thick, kernel: S.scanRes?.kernel ?? S.kernel, fov: S.scanRes?.fov ?? S.fov,
       dx: -(S.scanRes ? S.scanRes.zOff : S.zOff) * 100, dy: ((S.scanRes ? S.scanRes.yc[sec.name] ?? yc : yc) - AX_Y) * 100, tableCy: ((S.scanRes ? S.scanRes.yTop : yTop) - 0.009 - AX_Y) * 100, off};
   }
   function recon(sPos) {   // reconstruct (cached) the image at phantom position sPos (cm)

@@ -14,11 +14,13 @@ const ring = (r, n, size, hus) => hus.map((hu, i) => { const a = (i / n) * Math.
 export const SECTIONS = [
   {name: 'Module A · HU linearity', s0: 0, s1: 10, note: 'Water body with seven material inserts (air, PMP, LDPE, polystyrene, acrylic, Delrin, Teflon).',
     ell: [[0, 0, 10, 10, 0], ...ring(5.2, 7, 0.9, [-1000, -200, -100, -35, 120, 340, 990])]},
-  {name: 'Module B · Uniformity & noise', s0: 10, s1: 20, note: 'Uniform water cylinder, plus a small low-contrast 1 cm rod (+12 HU) near the top.',
-    ell: [[0, 0, 10, 10, 0], [0, 4.4, 0.5, 0.5, 12, true]]},
-  {name: 'Module C · Thorax', s0: 20, s1: 34, note: 'Elliptical soft-tissue body, lungs, spine, aorta (contrast), and a 10 mm lung nodule.',
+  {name: 'Module B · Uniformity, noise & spheres', s0: 10, s1: 20, note: 'Uniform water cylinder (keep the centre clear for noise / uniformity), a small low-contrast 1 cm rod (+12 HU) near the top, and four spheres at different slice positions: 10 mm +400 HU, 15 mm +100 HU, 20 mm +50 HU and 25 mm +25 HU. Scroll the slices: each sphere grows to its full diameter and shrinks again.',
+    ell: [[0, 0, 10, 10, 0], [0, 4.4, 0.5, 0.5, 12, true]],
+    spheres: [[-4.5, 2.0, 12.0, 0.5, 400], [4.5, 2.0, 14.0, 0.75, 100], [4.5, -3.0, 16.0, 1.0, 50], [-4.5, -3.0, 18.0, 1.25, 25]]},   // [cx, cy, centre s (cm from head end), radius, HU] (cm)
+  {name: 'Module C · Thorax', s0: 20, s1: 34, note: 'Elliptical soft-tissue body, lungs, spine, aorta (contrast), and three spherical lung targets: 10 mm and 14 mm solid nodules and an 18 mm ground-glass nodule (scroll to find them).',
     ell: [[0, 0, 15, 10.5, 40], [-7, 0.4, 5.6, 6.6, -820], [7, 0.4, 5.6, 6.6, -820], [0, -6.2, 2.1, 2.1, 330], [0, -6.2, 1.0, 1.0, 140],
-      [0, -2.4, 2.1, 2.1, 140], [0, 1.0, 1.6, 2.2, 55], [-9.4, 2.2, 0.5, 0.5, 15, true], [-9.6, -0.8, 0.8, 0.8, 330, true], [9.6, -0.8, 0.8, 0.8, 330, true]]},
+      [0, -2.4, 2.1, 2.1, 140], [0, 1.0, 1.6, 2.2, 55], [-9.6, -0.8, 0.8, 0.8, 330, true], [9.6, -0.8, 0.8, 0.8, 330, true]],
+    spheres: [[-6.5, 1.5, 25.0, 0.5, 30], [7.5, -1.5, 29.0, 0.7, 30], [-6.0, -2.0, 31.5, 0.9, -450]]},
 ];
 export const PHANTOM_LEN = 34;
 export const sectionAt = (s) => SECTIONS.find((x) => s >= x.s0 && s < x.s1) || SECTIONS[SECTIONS.length - 1];
@@ -27,7 +29,7 @@ const hard = (hu, kvp) => (hu > 100 ? hu * (1 + 0.18 * ((120 - kvp) / 40)) : hu)
 const muOf = (hu, kvp) => Math.max(0, KVP[kvp].mu * (1 + hard(hu, kvp) / 1000));
 
 /** list of {cx, cy, a, b, mu} with differential mu so overlaps add (overwrite -> delta). Offsets move the phantom in the scan plane (cm). */
-function buildEllipses(sec, kvp, dx, dy, table) {
+function buildEllipses(sec, kvp, dx, dy, table, sPos) {
   const out = []; let order = [];
   // painter's algorithm using differential attenuation: each ellipse adds (mu_i - mu_parent)
   for (let i = 0; i < sec.ell.length; i++) {
@@ -39,6 +41,11 @@ function buildEllipses(sec, kvp, dx, dy, table) {
     order.push({cx: cx + dx, cy: cy + dy, a, b, d: muOf(hu, kvp) - (i === 0 ? 0 : muOf(parent, kvp))});
   }
   out.push(...order);
+  if (sPos != null && sec.spheres) for (const [cx, cy, sc, r, hu] of sec.spheres) {   // true spheres: this slice cuts each one at a radius sqrt(r^2 - dz^2)
+    const dz = sPos - sc; if (Math.abs(dz) >= r) continue; const rho = Math.sqrt(r * r - dz * dz); let parent = 0;
+    for (let j = sec.ell.length - 1; j >= 0; j--) { const [pcx, pcy, pa, pb, phu] = sec.ell[j]; if (((cx - pcx) / pa) ** 2 + ((cy - pcy) / pb) ** 2 <= 1) { parent = phu; break; } }
+    out.push({cx: cx + dx, cy: cy + dy, a: rho, b: rho, d: muOf(hu, kvp) - muOf(parent, kvp)});
+  }
   if (table) out.push({cx: table.cx, cy: table.cy, a: table.a, b: table.b, d: KVP[kvp].mu * 0.45});   // carbon-fibre table top ~ +(-550 HU) equivalent
   return out;
 }
@@ -70,7 +77,7 @@ export const KERNEL_NAMES = KERNELS;
 export function reconstruct(p, n = 192) {
   const sec = p.section, kvp = p.kvp, nViews = 360, nDet = 320, FOVd = 50, ds = FOVd / nDet;
   const table = {cx: p.tableCx ?? 0, cy: p.tableCy ?? -12, a: 22, b: 0.9};
-  const ell = buildEllipses(sec, kvp, p.dx || 0, p.dy || 0, table);
+  const ell = buildEllipses(sec, kvp, p.dx || 0, p.dy || 0, table, p.sPos);
   const sino = sinogram(ell, nViews, nDet, ds);
   // photon statistics: N0 per detector reading
   const N0 = 7.0e4 * (p.mAs / p.pitch / 100) * (kvp / 120) ** 2.2 * (p.thick / 5) * (ds / 0.156);
@@ -121,7 +128,7 @@ export function scout(view, kvp, topRel = 0, dx = 0, mAs = 40, seed = 3) {
   const nS = 340, nU = 160, du = 0.25, r = rng(seed), data = new Float32Array(nS * nU);   // 0.1 cm per column along s
   let mx = 0;
   for (let si = 0; si < nS; si++) {
-    const s = (si + 0.5) * (PHANTOM_LEN / nS), sec = sectionAt(s), ell = buildEllipses(sec, kvp, dx, topRel + sec.ell[0][3], {cx: 0, cy: topRel - 0.9, a: 22, b: 0.9});
+    const s = (si + 0.5) * (PHANTOM_LEN / nS), sec = sectionAt(s), ell = buildEllipses(sec, kvp, dx, topRel + sec.ell[0][3], {cx: 0, cy: topRel - 0.9, a: 22, b: 0.9}, s);
     for (let ui = 0; ui < nU; ui++) {
       const u = -(ui - nU / 2 + 0.5) * du; let line = 0;   // image rows run downward, so negate: patient-left (AP) / anterior (lateral) at the top, table at the bottom
       for (const e of ell) {
