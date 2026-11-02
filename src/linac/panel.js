@@ -296,10 +296,12 @@ export function buildLinacPanels(stage, lin, ui) {
           axes.couchLng.tgt = cl(axes.couchLng, axes.couchLng.val - e.dx); axes.couchVrt.tgt = cl(axes.couchVrt, axes.couchVrt.val - e.dy); axes.couchLat.tgt = cl(axes.couchLat, axes.couchLat.val + LATSIGN * e.dz); syncSliders(); S.status = 'MOVING';
           await until(() => ['couchLng', 'couchVrt', 'couchLat'].every((k2) => Math.abs(axes[k2].val - axes[k2].tgt) < 1e-4), 15000); const e2 = setupError(); if (Math.max(Math.abs(e2.dx), Math.abs(e2.dy), Math.abs(e2.dz)) < 0.0015) break; } }
       else if (id === 'img') { S.kvTarget = 1; S.mvTarget = 1; refs.kv && refs.kv.set(true); refs.mv && refs.mv.set(true); await until(() => S.kvOut > 0.95 && S.mvOut > 0.95, 15000);
-          W.kvImaged = true; W.mvImaged = true; W.shown = 'kv'; applyShift(); W.kvApplied = true; await until(() => markerErr().n < 0.0012, 15000); drawImg(); }
-      else if (id === 'beam') { S.kvTarget = 0; S.mvTarget = 0; refs.kv && refs.kv.set(false); refs.mv && refs.mv.set(false); loadBeam(beamTarget()); S.status = 'MOVING'; }
+          W.kvImaged = true; W.mvImaged = true; W.shown = 'kv'; W.kvApplied = true;
+          for (let k = 0; k < 4 && markerErr().n >= 0.0012; k++) { applyShift(); await sleep(300); await until(() => ['couchLng', 'couchVrt', 'couchLat'].every((k2) => Math.abs(axes[k2].val - axes[k2].tgt) < 1e-4), 15000); }
+          drawImg(); }
+      else if (id === 'beam') { S.kvTarget = 0; S.mvTarget = 0; refs.kv && refs.kv.set(false); refs.mv && refs.mv.set(false); await until(() => S.kvOut < 0.05 && S.mvOut < 0.05, 20000); loadBeam(beamTarget()); S.status = 'MOVING'; }
       else if (id === 'deliver') { if (S.doorOpen) { S.doorOpen = false; refs.door && refs.door.set(true); lin.room.setDoor(false); await sleep(600); } if (!S.beamOn && S.delivered < S.mu - 0.01) beamOn(); }
-      else if (id === 'end') { S.beamOn = false; S.doorOpen = true; refs.door && refs.door.set(false); lin.room.setDoor(true); S.kvTarget = 0; S.mvTarget = 0; refs.kv && refs.kv.set(false); refs.mv && refs.mv.set(false);
+      else if (id === 'end') { S.beamOn = false; S.doorOpen = true; refs.door && refs.door.set(false); lin.room.setDoor(true); S.kvTarget = 0; S.mvTarget = 0; refs.kv && refs.kv.set(false); refs.mv && refs.mv.set(false); await until(() => S.kvOut < 0.05 && S.mvOut < 0.05, 20000);
           axes.couchRot.tgt = 0; axes.gantry.tgt = 0; axes.couchLng.tgt = -0.8; axes.couchVrt.tgt = axes.couchVrt.min + 0.1; syncSliders(); }
       const st = STEPS[W.step]; const ok = await until(() => st.checks().every(([, k]) => k), id === 'deliver' ? 120000 : 20000);
       if (ok) advance(); else { renderWF(); ui.toast('Skip could not finish this step automatically (check interlocks / collisions).', 'bad'); }

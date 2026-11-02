@@ -138,14 +138,14 @@ export async function createLinac(stage) {
   const pipeMat = M.brass();
   const pipe = (len, r, x, y, z, axis = 'y', parent = world) => { const m = new T.Mesh(new T.CylinderGeometry(r, r, len, 20), pipeMat); m.position.set(x, y, z); if (axis === 'x') m.rotation.z = Math.PI / 2; if (axis === 'z') m.rotation.x = Math.PI / 2; m.castShadow = true; parent.add(m); return m; };
   const kTop = 1.0145 + dropStand.y;
-  pipe(1.62 - kTop, 0.03, 1.40, (1.62 + kTop) / 2, -0.0, 'y', stand);
+  pipe(ISO.y - kTop + 0.01, 0.03, 1.40, (ISO.y + kTop + 0.01) / 2, -0.0, 'y', stand);   // klystron pipe ends at the junction (circulator), it no longer runs above it
   pipe(0.12, 0.05, 1.17, ISO.y, 0, 'x', gantryInner);
   // static RF link: from the rotary joint on the gantry axis out to the klystron / circulator pipe; it ends on that pipe and does not pass beyond it
   { const x0 = 1.23, x1 = 1.40; const link = pipe(x1 - x0, 0.03, (x0 + x1) / 2, ISO.y, 0, 'x', stand); link.userData.rfLink = true;
     const tee = new T.Mesh(new T.SphereGeometry(0.038, 16, 12), pipeMat); tee.position.set(x1, ISO.y, 0); tee.castShadow = true; stand.add(tee); tee.userData.rfLink = true; }
   // RF waveguide: klystron -> circulator -> rotary joint -> vertical feed on the gantry -> a top and a bottom header that run along the accelerating waveguide; each header
   // drops/rises through two stubs into the narrow joints between the side-coupled cavities (two ports on top, two underneath), instead of ending on the gun axis
-  { const WG_Y = 1.769, WG_R = 0.117, RF_TOP = WG_Y + 0.235, RF_BOT = WG_Y - 0.235, PORTS = [0.54, 0.84], FX = 1.12, PR = 0.028;
+  { const WG_Y = 1.769, WG_R = 0.117, RF_TOP = WG_Y + 0.17, RF_BOT = WG_Y - 0.17, PORTS = [0.54, 0.84], FX = 1.12, PR = 0.028;
     const feedTop = RF_TOP - ISO.y; pipe(feedTop, PR, FX, ISO.y + feedTop / 2, 0, 'y', gantryInner);
     const joint = (x, y) => { const m = new T.Mesh(new T.SphereGeometry(PR * 1.25, 16, 12), pipeMat); m.position.set(x, y, 0); m.castShadow = true; gantryInner.add(m); };
     const xmid = (FX + PORTS[0]) / 2, xlen = FX - PORTS[0];
@@ -154,7 +154,7 @@ export async function createLinac(stage) {
       for (const px of PORTS) { const ye = WG_Y - sgn * WG_R, L = Math.abs(yh - ye); pipe(L, PR, px, (yh + ye) / 2, 0, 'y', gantryInner); joint(px, yh);
         const fl = new T.Mesh(new T.CylinderGeometry(PR * 1.9, PR * 1.9, 0.012, 24), pipeMat); fl.position.set(px, ye - sgn * 0.006, 0); gantryInner.add(fl); }
     } }
-  pipe(1.62 - ISO.y, 0.03, 1.40, ISO.y + (1.62 - ISO.y) / 2, -0.0, 'y', stand).visible = false;
+  { const circ = (registry.get('04_Circulator') || []).find((m) => m.geometry && m.geometry.type !== 'CylinderGeometry'); if (circ) { circ.updateMatrixWorld(true); const b = new T.Box3().setFromObject(circ); const c0 = b.getCenter(new T.Vector3()); const c1 = c0.clone(); c1.y = ISO.y; circ.position.add(circ.parent.worldToLocal(c1.clone()).sub(circ.parent.worldToLocal(c0.clone()))); circ.visible = true; } }   // circulator sits on the pipe at the junction with the RF link
   for (const m of [...stand.children]) if (m.geometry && m.geometry.type === 'CylinderGeometry' && !m.userData.rfLink) register('04_Circulator', m);
   gantryInner.traverse((m) => { if (m.isMesh && (m.geometry.type === 'CylinderGeometry' || m.geometry.type === 'SphereGeometry') && m.material === pipeMat) register('RF_Waveguide', m); });
   stand.children.forEach((m) => { if (m.userData.rfLink) register('RF_Waveguide', m); });
@@ -197,7 +197,7 @@ export async function createLinac(stage) {
   // +Z arm ends in the kV tube housing (source 100 cm from the isocentre); -Z arm ends in the flat-panel detector (face 55 cm from the isocentre).
   // The original, bulky GLB arms are hidden; the arms below are registered as the '15_KV_Imagine_System' part.
   kv.visible = false; kv.traverse((o) => { if (o.isMesh) o.userData.part = null; }); registry.set('15_KV_Imagine_System', []);
-  const KV = {srcZ: 1.0, detZ: -0.55, srcIn: 0.97, half: 0.12, zr: 0.24, xb: ISO.x + 0.20, xd: 1.0};
+  const KV = {srcZ: 1.0, detZ: -0.55, srcIn: 0.97, half: 0.20, zr: 0.62, xb: ISO.x + 0.20, xd: 0.99};
   const kvG = new T.Group(); kvG.name = 'kV_Imaging_Arms'; kvG.visible = false; gantryInner.add(kvG);
   const kvWhite = M.paintWhite(), kvTeal = M.paintTeal();
   const kvParts = [];
@@ -219,8 +219,8 @@ export async function createLinac(stage) {
     setBox(brS, (ISO.x + 0.085 + xb) / 2, y, zin + 0.17, xb - ISO.x - 0.085 + 0.02, 0.07, 0.07);
     setBox(barS, xb, y, (zr - w / 2 + hb) / 2, w, 0.09, hb - zr + w / 2);
     const zf = -(zr + (Math.abs(KV.detZ) - zr) * kk), zb = zf - 0.04;   // detector: face zf (towards the isocentre), back zb
-    setBox(detPanel, ISO.x, y, (zf + zb) / 2, 0.30, 0.30, 0.04); detFace.position.set(ISO.x, y, zf + 0.001); detFace.scale.set(0.27, 0.27, 1);
-    setBox(brD, (ISO.x + 0.15 + xb) / 2, y, zb + 0.02, xb - ISO.x - 0.15 + 0.02, 0.07, 0.07);
+    setBox(detPanel, ISO.x, y, (zf + zb) / 2, 0.42, 0.42, 0.04); detFace.position.set(ISO.x, y, zf + 0.001); detFace.scale.set(0.40, 0.40, 1);
+    setBox(brD, (ISO.x + 0.21 + xb) / 2, y, zb + 0.02, xb - ISO.x - 0.21 + 0.02, 0.07, 0.07);
     setBox(barD, xb, y, (-zr + w / 2 + zb) / 2, w, 0.09, Math.abs(zb) - zr + w / 2);
     let n = 0; for (const e of kvParts) for (const f of FR) { if (!e.long && f[2] !== -1 && f[2] !== 1 && !(f[0] === 0 && f[1] === 0 && f[2] === 0)) continue; kvSamp[n++].set(e.cx + f[0] * e.sx, e.cy + f[1] * e.sy, e.cz + f[2] * e.sz); }
     kvG.userData.n = n;
@@ -287,7 +287,8 @@ export async function createLinac(stage) {
   function applyAxes() {
     gantryPivot.rotation.x = T.MathUtils.degToRad(axes.gantry.val);
     collPivot.rotation.y = T.MathUtils.degToRad(axes.coll.val);
-    couch.state.rot = axes.couchRot.val; couch.state.lat = axes.couchLat.val; couch.state.lng = -axes.couchLng.val;   // IEC: +couchLng = toward the gantry (+Y); the model's couch-top x runs the other way couch.state.H = axes.couchVrt.val;
+    couch.state.rot = axes.couchRot.val; couch.state.lat = axes.couchLat.val; couch.state.lng = -axes.couchLng.val;   // IEC: +couchLng = toward the gantry (+Y); the model's couch-top x runs the other way
+    couch.state.H = axes.couchVrt.val;
     couch.apply();
   }
   applyAxes();
