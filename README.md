@@ -1,4 +1,4 @@
-# OpenLearn v2 — realistic CT scanner & linear accelerator (WebXR)
+# OpenLearn V2 — interactive CT and linear-accelerator simulation for medical-physics education
 
 ## [▶ Launch the viewer](https://pbasran.github.io/OpenLearnV2/)
 
@@ -10,11 +10,32 @@ Direct links: [**Linear accelerator**](https://pbasran.github.io/OpenLearnV2/) �
 
 Scan with a phone camera. For augmented reality use Chrome on an ARCore-capable Android phone and tap **AR**. On iPhone/iPad the QR code opens the normal 3D view (iOS Safari has no WebXR AR); for AR on iPad use the **[life-size iPad AR page](https://pbasran.github.io/OpenLearnV2/ar/)** (Apple AR Quick Look, no install).
 
-A separate, from-scratch rebuild of the OpenLearn CT and linac teaching models. **It does not modify or replace the deployed, IRB-approved v1 apps** (`RealtimeUrbanismLab/OpenLearn`, `VirtualLinac`). Host it at its own URL; any study use needs its own review.
 
-* 3D engine: three.js r161 (PBR materials, image-based lighting, soft shadows). No A-Frame / 8th Wall dependency.
-* AR: open standard **WebXR** (hit-test placement). Works in Chrome/Edge on ARCore Android phones and Quest browser. **iOS Safari has no WebXR AR** — the same page still runs as a normal 3D viewer there.
-* No analytics, no network calls after load, nothing recorded or sent. Workflow results exist only in the page.
+**OpenLearn V2 is an open-source, browser-based simulation of CT scanner and linear-accelerator operation** for medical-physics education. It is not just a 3-D or AR viewer: learners operate the equipment, follow clinical workflows and see the physics respond.
+
+* **Realistic equipment geometry and motion** — real axis conventions, speeds and travel limits.
+* **Operational workflows** — CT scouting, protocol and acquisition; linac time-out, set-up, image guidance and beam delivery.
+* **Imaging physics** — filtered back-projection CT, kV / MV / CBCT imaging.
+* **Simplified radiation-physics models** — educational dose and noise behaviour, not clinical calculation.
+* **Safety and interlocks** — collision, door, kV/x-ray and tube-heat interlocks.
+* **No specialised hardware** — runs in any modern browser; optional WebXR AR on supported phones.
+
+## Relationship to V1 and research use
+
+* V2 is a **separate, from-scratch rebuild**. It does **not** modify or replace the deployed, IRB-approved V1 study applications (`RealtimeUrbanismLab/OpenLearn`, `VirtualLinac`).
+* V2 must not be substituted for the V1 intervention in any approved study.
+* **Any research use of V2 with human participants requires appropriate protocol / IRB review** (or an amendment that explicitly covers V2). Optional research logging is only a dormant, disabled-by-default hook; see `docs/research-logging.md`.
+
+## Privacy
+
+Verified in the source and the production build:
+
+* After the page and its bundled assets load from the host, the simulation runs **locally in your browser**.
+* **No analytics, no user tracking, no cookies or browser storage.**
+* **No external API calls during simulation** (no `fetch`, XHR, WebSocket, beacons, CDN fonts or remote scripts).
+* **Nothing the learner does is transmitted or recorded**; workflow results exist only in the open page.
+
+Caveat: the *host* (e.g. GitHub Pages) can see ordinary web-server request logs when the page is loaded, as with any website. AR hit-testing uses the browser's own WebXR implementation, which is outside this app's control.
 
 ## Run / build
 
@@ -26,20 +47,20 @@ npm run build      # static site in dist/ (relative paths; can be hosted in any 
 
 `npm run optimize` re-creates `public/assets/` from the original GLB files (weld → simplify → meshopt; 32–37 MB → ≈6 MB). It expects the OpenLearn repo checked out next to this folder; the optimised assets are already included.
 
-## What is new compared with v1
+## What is in V2 compared with V1
 
-| | v1 | v2 |
+| | V1 | V2 |
 |---|---|---|
-| Visuals | flat-shaded GLBs | PBR paint / metal / glass / carbon, hospital-vault environment lighting, shadows, room with door, console (CT room has a lead-glass window; the linac vault does not) |
-| Linac mechanics | free rotation | IEC-61217 axes with real relative speeds, travel limits, **collision interlocks** (head / arm / kV arms / MV imager vs. couch, phantom, floor), door interlock |
-| Linac look | — | ring-style gantry face (no dial), glossy head with no box round the collimator so the jaws and MLC leaves are visible, treatment console in a control room outside the bunker (no viewing window, as in a real megavoltage vault: live status screens, a command log and a CCTV view; intercom and ceiling camera in the vault) |
-| Linac field | — | 60-pair MLC (0.5 / 1.0 cm leaves), 4 tungsten jaws with divergent faces, shaped **light field** that rotates with collimator & gantry, room lasers drawn on the phantom |
-| Linac physics | — | educational dose model: PDD, output factor, off-axis profile (flattened / FFF), SSD from real geometry, isodose slice in the phantom |
-| Linac workflow | — | time-out → laser set-up (2 mm) → image guidance (kV AP + lateral with couch shift; MV portal image of the field) → beam parameters (R&V) → beam-on with interlocks |
-| CT mechanics | — | rotating tube / detector, gantry tilt ±30°, table in / height with bore-clearance limits, external laser alignment, tube-heat limit, door & x-ray lamp interlocks |
-| CT imaging | — | analytic phantom → sinogram with photon noise → **filtered back-projection**; kVp, mAs, pitch, slice thickness, kernel and FOV change the image the way they do on a scanner; scout (topogram), range planning, CTDIvol / DLP, W/L, ROI tool |
-| CT table | — | flat indexed carbon-fibre couch top (numbered index positions, cm ruler) with its own Parts learning item; positioning lasers can be switched on/off |
-| CT workflow | — | time-out → laser positioning → scout → range & protocol → acquire (helical or axial) → review / measure → finish |
+| Visuals | flat-shaded GLBs | PBR paint / metal / glass / carbon, hospital-vault lighting, shadows, room with door and a control-room console |
+| Linac mechanics | free rotation | **IEC 61217** conventions (0–360° gantry and collimator, signed jaw coordinates, couch rotation/longitudinal), real relative speeds, travel limits, **collision interlocks**, door interlock |
+| Linac head | — | 60-pair MLC (0.5 / 1.0 cm leaves; 40 × 40 cm preset), four divergent tungsten jaws with **symmetric or asymmetric** control, shaped light field, thin ring showing the real head envelope (collision risk) |
+| Gantry display | — | upright ring display of beam, gantry and collimator angles, beam on/off, MU and each jaw position |
+| Linac imaging | — | kV AP/lateral, MV portal image, and a **CBCT sequence** (arms extend, door auto-closes, kV beam with photons, 200° arc) |
+| Linac physics | — | educational dose model: PDD, output factor, off-axis profile, flattened / **FFF as an energy option**, SSD from geometry, isodose slice |
+| Linac workflow | — | time-out → laser set-up → image guidance → beam parameters (R&V) → beam-on with interlocks |
+| CT mechanics | — | rotating tube / detector, gantry tilt ±30°, table in / height with clearance limits, laser alignment, tube-heat limit, door and x-ray lamp interlocks; DICOM patient coordinate conventions |
+| CT imaging | — | analytic phantom → sinogram with photon noise → **filtered back-projection**; kVp, mAs, pitch, thickness, kernel and FOV act as on a scanner; scout, range planning, CTDIvol / DLP, W/L, ROI |
+| CT workflow | — | time-out → laser positioning → scout → range & protocol → acquire → review / measure → finish |
 
 ## 🐾 Easter eggs
 There is one hidden in each module. No spoilers, just hints:
@@ -65,4 +86,4 @@ public/assets optimised GLB models (from the original OpenLearn repository)
 * **iPad AR (static, life-size)**: `public/ar/` holds USDZ models of the linac (gantry 0° and 90°) and CT (table in / out) at 1 unit = 1 m, opened through Safari's AR Quick Look. Regenerate with `npx vite --port 5199` then `node tools/export-usdz.mjs` (needs Playwright); poses are listed at the top of `tools/export-usdz.mjs`. These are fixed poses; interactive controls remain in the WebXR/3D viewer.
 * AR scale presets: 1:16, 1:8, 1:4 and life-size. The room is hidden in AR and a shadow-catcher floor is added.
 * Not included yet: VR (headset) mode with in-headset controls; real DICOM data; multi-user/instructor features.
-* 3D models © their original authors (OpenLearn repository). Check the original repository's licence before redistributing the assets.
+* **Licensing:** source code is MIT (see `LICENSE`). The bundled 3-D models come from the original OpenLearn repository and their redistribution licence is **not yet verified** — see `ASSET_LICENSES.md`.

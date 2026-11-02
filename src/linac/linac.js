@@ -1,3 +1,4 @@
+import {events} from '../engine/events.js';
 // Linac assembly: GLB internals + procedural covers/couch/head, motorised axes with speeds, limits and collision interlocks.
 import {createElectronBeam} from './ebeam.js';
 import * as THREE from 'three';
@@ -299,7 +300,7 @@ export async function createLinac(stage) {
       if (S.interlock) { const c = collision(); if (c && !wasHit) { a.val = prev; applyAxes(); a.blocked = true; hit = {axis: name, what: c}; logCmd(`INTERLOCK: ${name} stopped - ${c}`, true); a.tgt = prev; } else a.blocked = false; }
       moving = true;
     }
-    if (hit) { S.status = 'INTERLOCK'; cbs.collision.forEach((f) => f(hit)); }
+    if (hit) { S.status = 'INTERLOCK'; events.emit('interlock', {kind: 'collision', detail: String(hit && hit.name || hit)}); cbs.collision.forEach((f) => f(hit)); }
     // kV arm motion
     const dk = S.kvTarget - S.kvOut; if (Math.abs(dk) > 1e-3) { S.kvOut += Math.sign(dk) * Math.min(Math.abs(dk), 0.5 * ts * dt); moving = true; } else S.kvOut = S.kvTarget;
     kv.scale.z = Math.max(0.06, S.kvOut); kv.visible = S.kvOut > 0.07;
@@ -342,7 +343,7 @@ export async function createLinac(stage) {
 
   // ---------- CBCT sequence: extend arms -> gantry to start -> kV on, rotate through a 200 degree arc -> kV off ----------
   const CB = {phase: 'idle', p: 0, start: -100, end: 100, why: ''};
-  const cbEmit = (type) => cbs.cbct.forEach((f) => f(type, CB));
+  const cbEmit = (type) => { events.emit('imaging.step', {step: 'cbct.' + type}); cbs.cbct.forEach((f) => f(type, CB)); };
   function cbctStart() {
     if (CB.phase !== 'idle' && CB.phase !== 'done' && CB.phase !== 'abort') return {ok: false, why: 'A CBCT is already running.'};
     if (S.doorOpen) { S.doorOpen = false; room.setDoor(false); logCmd('CBCT: room cleared, shielding door closed (kV x-ray interlock)'); cbEmit('door'); }
