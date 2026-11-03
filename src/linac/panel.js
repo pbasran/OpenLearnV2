@@ -78,7 +78,7 @@ export function buildLinacPanels(stage, lin, ui) {
       ui.button(row, 'Reset MU', () => { S.delivered = 0; }, 'ghost');
       refs.mu = ui.readout(g4, 'Delivered / planned'); refs.rate = ui.readout(g4, 'Dose rate');
       const g5 = ui.group(p, 'Room');
-      refs.door = ui.toggle(g5, {label: 'Shielding door closed (interlock)', value: !S.doorOpen, onChange: (v) => { S.doorOpen = !v; lin.room.setDoor(S.doorOpen); }});
+      refs.door = ui.toggle(g5, {label: 'Shielding door closed (interlock)', value: !S.doorOpen, onChange: (v) => { S.doorOpen = !v; lin.room.setDoor(S.doorOpen); }}); lin.room.setDoor(S.doorOpen);
       refs.kv = ui.toggle(g5, {label: 'kV imaging arms extended', value: false, onChange: (v) => { S.kvTarget = v ? 1 : 0; }});
       ui.button(g5, 'Run CBCT (extend kV arms, kV x-rays on, rotate)', () => { const r = lin.cbct.start(); if (!r.ok) ui.toast(r.why, 'bad'); else refs.kv && refs.kv.set(true); }, 'ghost');
       refs.mv = ui.toggle(g5, {label: 'MV portal imager (EPID) extended', value: false, onChange: (v) => { S.mvTarget = v ? 1 : 0; }});

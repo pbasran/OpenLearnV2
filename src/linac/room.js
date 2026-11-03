@@ -21,7 +21,18 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
   const H = ceilY - floorY, my = floorY + H / 2;
   // -x end wall (foot of couch): solid shielded wall. Megavoltage vaults have no viewing window - the operator watches CCTV and talks over an intercom.
   const WIN = {z: 1.55};                          // (only used to place the console in the control room)
-  wall(D, H, cx - W / 2, my, cz, Math.PI / 2);
+  // -x wall with a real doorway (z -2.35 .. -0.85, 2.15 m high) leading to the maze / corridor outside
+  const DOOR = {z0: -2.35, z1: -0.85, h: 2.15};
+  { const xw = cx - W / 2, zlo = cz - D / 2, zhi = cz + D / 2;
+    const seg = (za, zb, y0, y1) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(zb - za, y1 - y0), wallMat); m.rotation.y = Math.PI / 2; m.position.set(xw, (y0 + y1) / 2, (za + zb) / 2); m.receiveShadow = true; g.add(m); };
+    seg(zlo, DOOR.z0, floorY, ceilY); seg(DOOR.z1, zhi, floorY, ceilY); seg(DOOR.z0, DOOR.z1, floorY + DOOR.h, ceilY);
+    // corridor behind the door: floor, ceiling, end wall, side wall
+    const cl = 1.6, cw = DOOR.z1 - zlo + 0.0, czc = (zlo + 0.15) / 2 + 0.0;
+    const zc0 = zlo, zc1 = 0.15, zcm = (zc0 + zc1) / 2, zcw = zc1 - zc0;
+    const cf = new THREE.Mesh(new THREE.PlaneGeometry(cl, zcw), M.floor()); cf.rotation.x = -Math.PI / 2; cf.position.set(xw - cl / 2, floorY, zcm); cf.receiveShadow = true; g.add(cf);
+    const cc = new THREE.Mesh(new THREE.PlaneGeometry(cl, zcw), M.ceiling()); cc.rotation.x = Math.PI / 2; cc.position.set(xw - cl / 2, ceilY, zcm); g.add(cc);
+    const ce = new THREE.Mesh(new THREE.PlaneGeometry(zcw, H), wallMat); ce.rotation.y = Math.PI / 2; ce.position.set(xw - cl, my, zcm); ce.receiveShadow = true; g.add(ce);
+    const cs = new THREE.Mesh(new THREE.PlaneGeometry(cl, H), wallMat); cs.position.set(xw - cl / 2, my, zc0); cs.receiveShadow = true; g.add(cs); }
   wall(D, H, cx + W / 2, my, cz, -Math.PI / 2);         // +x wall behind the stand
   wall(W, H, cx, my, cz - D / 2, 0);                    // -z wall
   const wallPos = wall(W, H, cx, my, cz + D / 2, Math.PI);
@@ -30,10 +41,15 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
   // skirting + shielding-door on -x wall
   const skirt = new THREE.Mesh(new THREE.BoxGeometry(W, 0.12, 0.02), new THREE.MeshStandardMaterial({color: 0x7d8a8a, roughness: 0.6}));
   for (const [x, z, ry] of [[cx, cz - D / 2 + 0.01, 0], [cx, cz + D / 2 - 0.01, 0]]) { const s = skirt.clone(); s.position.set(x, floorY + 0.06, z); s.rotation.y = ry; g.add(s); }
-  const door = new THREE.Mesh(new RoundedBoxGeometry(0.28, 2.15, 1.5, 2, 0.02), M.paintGrey());
-  door.position.set(cx - W / 2 + 0.16, floorY + 1.08, -1.6); door.castShadow = door.receiveShadow = true; g.add(door);
+  // hinged shielding door: pivot at the hinge edge (z = DOOR.z1), swings outward (-x) through the doorway into the corridor
+  const doorPivot = new THREE.Group(); doorPivot.position.set(cx - W / 2 + 0.16, floorY, DOOR.z1); g.add(doorPivot);
+  const doorLen = DOOR.z1 - DOOR.z0;
+  const door = new THREE.Mesh(new RoundedBoxGeometry(0.28, DOOR.h, doorLen, 2, 0.02), M.paintGrey());
+  door.position.set(0, DOOR.h / 2 + 0.002, -doorLen / 2); door.castShadow = door.receiveShadow = true; doorPivot.add(door);
   const trefoil = new THREE.Mesh(new THREE.CircleGeometry(0.16, 3), new THREE.MeshBasicMaterial({color: 0xf5c518}));
-  trefoil.rotation.y = Math.PI / 2; trefoil.rotation.z = Math.PI / 2; trefoil.position.set(cx - W / 2 + 0.305, floorY + 1.55, -1.6); g.add(trefoil);
+  trefoil.rotation.y = Math.PI / 2; trefoil.rotation.z = Math.PI / 2; trefoil.position.set(0.145, 1.55, -doorLen / 2); doorPivot.add(trefoil);
+  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.12, 12), M.steelBrushed()); knob.rotation.x = Math.PI / 2; knob.position.set(0.15, 1.0, -doorLen + 0.12); doorPivot.add(knob);
+  let doorA = 0, doorTween = null;
   const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, 0.34), M.led(0x1a6a40));
   lamp.position.set(cx - W / 2 + 0.05, floorY + 2.35, -1.6); g.add(lamp);
   const signCv = document.createElement('canvas'); signCv.width = 512; signCv.height = 112; { const c = signCv.getContext('2d'); c.fillStyle = '#b00d0d'; c.fillRect(0, 0, 512, 112); c.strokeStyle = '#fff'; c.lineWidth = 6; c.strokeRect(5, 5, 502, 102); c.fillStyle = '#fff'; c.font = 'bold 66px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('X-RAYS ON', 256, 58); }
@@ -130,7 +146,7 @@ export function buildRoom({iso, floorY, ceilY, rotRadius = 1.75}) {
     group: g, W, D, cx, cz, lampLight, console: consoleApi, consoleGroup: consoleG,
     flashSign(on, tms) { sign.visible = signB.visible = on && (Math.floor(tms / 350) % 2 === 0); },
     setBeamOn(on) { lamp.material.color.set(on ? 0xff2a1a : 0x1a6a40); lamp.material.emissive.set(on ? 0xff2a1a : 0x1a6a40); lampLight.intensity = on ? 3 : 0; },
-    setDoor(open) { door.position.z = open ? -0.4 : -1.6; },
+    setDoor(open) { const a0 = doorA, a1 = open ? Math.PI * 0.55 : 0, t0 = performance.now(), dur = 1100; const id = (doorTween = {}); const step = (t) => { if (doorTween !== id) return; const k = Math.min(1, (t - t0) / dur), e = k * k * (3 - 2 * k); doorA = a0 + (a1 - a0) * e; doorPivot.rotation.y = doorA; if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); },
     wallLasers: lines,
   };
 }
