@@ -218,7 +218,7 @@ export async function createCT(stage) {
       const col = new T.Mesh(new T.CylinderGeometry(0.03, 0.04, AX_Y - 0.1, 16), M.steelBrushed()); col.position.y = (AX_Y - 0.1) / 2 + 0.04; st.add(col);
       const head = new T.Mesh(new RoundedBoxGeometry(0.14, 0.11, 0.12, 2, 0.02), M.paintGrey()); head.position.y = AX_Y; head.castShadow = true; st.add(head);
       const lens = new T.Mesh(new T.CircleGeometry(0.02, 12), new T.MeshBasicMaterial({color: 0xff2418, toneMapped: false})); lens.position.set(0, AX_Y, -s * 0.061); lens.rotation.y = s > 0 ? Math.PI : 0; st.add(lens);
-      const zw = s * (RZ - 0.002);
+      const zw = -s * (RZ - 0.002);   // each stand projects across the couch to the opposite wall
       wallLaser.add(tri([XL, AX_Y, s * SZ], [XL, 0, zw], [XL, RH, zw]));            // axial plane fan
       wallLaser.add(tri([XL, AX_Y, s * SZ], [RX0, AX_Y, zw], [RX1, AX_Y, zw]));     // coronal plane fan
     }
