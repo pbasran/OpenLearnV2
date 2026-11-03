@@ -209,7 +209,23 @@ export async function createCT(stage) {
     for (const s of [-1, 1]) { strip(rW - 0.2, 0.006, rcx, AX_Y, s * (RZ - 0.002), s > 0 ? Math.PI : 0); strip(0.006, RH, XL, RH / 2, s * (RZ - 0.002), s > 0 ? Math.PI : 0); }
     const c = new T.Mesh(new T.PlaneGeometry(rW - 0.2, 0.006), lm2); c.rotation.x = Math.PI / 2; c.position.set(rcx, RH - 0.003, 0); wallLaser.add(c);
     const c2 = new T.Mesh(new T.PlaneGeometry(0.006, RZ * 2 - 0.2), lm2); c2.rotation.x = Math.PI / 2; c2.position.set(XL, RH - 0.003, 0); wallLaser.add(c2);
-    for (const x of [XL]) for (const s of [-1, 1]) { const pr = new T.Mesh(new RoundedBoxGeometry(0.12, 0.1, 0.1, 2, 0.02), M.paintGrey()); pr.position.set(x, AX_Y, s * (RZ - 0.05)); wallLaser.add(pr); }
+    // free-standing laser stands left and right of the couch (the vertical axial plane and the horizontal coronal plane fan out from each head), plus a ceiling bar for the sagittal laser
+    const SZ = 1.3, fan = new T.MeshBasicMaterial({color: 0xff2418, transparent: true, opacity: 0.035, side: T.DoubleSide, depthWrite: false, toneMapped: false});
+    const tri = (a, b, c) => { const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array([...a, ...b, ...c]), 3)); return new T.Mesh(g, fan); };
+    for (const s of [-1, 1]) {
+      const st = new T.Group(); st.position.set(XL, 0, s * SZ); wallLaser.add(st);
+      const base = new T.Mesh(new T.CylinderGeometry(0.2, 0.22, 0.04, 28), M.paintGrey()); base.position.y = 0.02; st.add(base);
+      const col = new T.Mesh(new T.CylinderGeometry(0.03, 0.04, AX_Y - 0.1, 16), M.steelBrushed()); col.position.y = (AX_Y - 0.1) / 2 + 0.04; st.add(col);
+      const head = new T.Mesh(new RoundedBoxGeometry(0.14, 0.11, 0.12, 2, 0.02), M.paintGrey()); head.position.y = AX_Y; head.castShadow = true; st.add(head);
+      const lens = new T.Mesh(new T.CircleGeometry(0.02, 12), new T.MeshBasicMaterial({color: 0xff2418, toneMapped: false})); lens.position.set(0, AX_Y, -s * 0.061); lens.rotation.y = s > 0 ? Math.PI : 0; st.add(lens);
+      const zw = s * (RZ - 0.002);
+      wallLaser.add(tri([XL, AX_Y, s * SZ], [XL, 0, zw], [XL, RH, zw]));            // axial plane fan
+      wallLaser.add(tri([XL, AX_Y, s * SZ], [RX0, AX_Y, zw], [RX1, AX_Y, zw]));     // coronal plane fan
+    }
+    const bar = new T.Group(); bar.position.set(XL, RH, 0); wallLaser.add(bar);
+    const bh = new T.Mesh(new RoundedBoxGeometry(0.7, 0.08, 0.12, 2, 0.02), M.paintGrey()); bh.position.y = -0.2; bar.add(bh);
+    for (const dx of [-0.25, 0.25]) { const rod = new T.Mesh(new T.CylinderGeometry(0.012, 0.012, 0.2, 10), M.steelBrushed()); rod.position.set(dx, -0.1, 0); bar.add(rod); }
+    wallLaser.add(tri([XL, RH - 0.24, 0], [RX0, 0, 0], [RX1, 0, 0]));   // sagittal plane fan from the ceiling bar
   }
   function laserGeometry() {            // red lines on phantom + table where each laser plane intersects them
     nseg = 0; const topY = tableTop.position.y;
