@@ -221,7 +221,7 @@ export function buildCTPanels(stage, ct, ui) {
       ui.note(d, q ? 'On the Images tab, scroll to a uniform water region, tap to place the ROI in the centre of the phantom: water must read <b>0 ± 10 HU</b> with noise SD < 14 HU. Then examine the inserts (Teflon ≈ +990 HU, air ≈ −1000 HU).' : 'On the Images tab switch to the <b>Lung</b> window and pick a small (3–5 mm) ROI and place it on the 10 mm soft-tissue nodule in the right lung (patient-right = left of the picture); it is a sphere, so scroll the slices around 25 cm from the head end to find its widest cross-section (there are two more nodules further down). The nodule is soft tissue (≈ 0–60 HU) surrounded by air-filled lung (≈ −820 HU).');
       ui.button(d, 'Go to Images', () => goTab(2), 'ghost'); return d; },
       checks: () => (W.exam === 'qa' ? [['Water ROI ≈ 0 HU, low noise', W.roiOk]] : [['Lung window used', W.wlOk], ['Nodule measured', W.nod]])},
-    {id: 'end', title: '7 · Finish', body: () => { const d = ui.el('div'); ui.note(d, 'Move the table out and down, open the door and review the dose report. The dose report is part of the study record.'); ui.button(d, 'Table out & down', () => { axes.tableIn.tgt = 0; axes.tableH.tgt = 0.95; syncScan(); }, 'ghost'); ui.button(d, 'Open door', () => { S.doorOpen = true; refs.door.set(false); }, 'ghost'); ui.button(d, 'Dose report', () => report(), 'ghost'); return d; },
+    {id: 'end', title: '7 · Finish', body: () => { const d = ui.el('div'); ui.note(d, 'Move the table out and down, open the door and review the dose report. The dose report is part of the study record.'); ui.button(d, 'Table out & down', () => tableOutDown(), 'ghost'); ui.button(d, 'Open door', () => { S.doorOpen = true; refs.door.set(false); }, 'ghost'); ui.button(d, 'Dose report', () => report(), 'ghost'); return d; },
       checks: () => [['Door open', S.doorOpen], ['Table withdrawn', axes.tableIn.val < 0.05]]},
   ];
   function buildWF() { refs.wf.innerHTML = ''; ui.note(refs.wf, 'A guided simulated examination on a CT phantom. Each step has pass/fail checks. <b>No data are recorded or sent anywhere.</b>'); refs.wfBody = ui.el('div'); refs.wf.append(refs.wfBody); renderWF(); }
@@ -239,6 +239,11 @@ export function buildCTPanels(stage, ct, ui) {
   let skipping = false;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   async function until(cond, ms = 30000) { const t0 = performance.now(); while (!cond() && performance.now() - t0 < ms) await sleep(100); return cond(); }
+  /* withdraw the table fully out of the bore first, and only then lower it (lowering while still inside the gantry makes the couch hit the bore) */
+  async function tableOutDown() {
+    axes.tableIn.tgt = 0; syncScan(); await until(() => axes.tableIn.val < 0.02, 30000);
+    axes.tableH.tgt = 0.95; syncScan();
+  }
   async function skipStep() {
     if (skipping) return; skipping = true; const ts = S.timeScale; S.timeScale = 5; const id = STEPS[W.step].id, e = EXAMS[W.exam];
     try {
@@ -249,7 +254,7 @@ export function buildCTPanels(stage, ct, ui) {
       else if (id === 'plan2') { axes.tilt.tgt = 0; S.range = [...e.target]; S.fov = Math.max(S.fov, e.name.includes('Thorax') || e.name.includes('Low') ? 34 : 24); syncRange && syncRange(); syncScan(); await until(() => Math.abs(axes.tilt.val) < 0.1, 8000); }
       else if (id === 'scan') { S.doorOpen = false; refs.door && refs.door.set(true); doScan(); await sleep(300); await until(() => S.scanRes && !S.scanState, 120000); }
       else if (id === 'review') { if (W.exam === 'qa') W.roiOk = true; else { setWL(-600, 1500, 'lung'); W.nod = true; } ui.toast('Review step completed for you — on your own, place the ROI on the Images tab.', 'ok'); }
-      else if (id === 'end') { axes.tableIn.tgt = 0; axes.tableH.tgt = 0.95; S.doorOpen = true; refs.door && refs.door.set(false); syncScan(); }
+      else if (id === 'end') { S.doorOpen = true; refs.door && refs.door.set(false); await tableOutDown(); }
       const st = STEPS[W.step]; const ok = await until(() => st.checks().every(([, k]) => k), 30000);
       if (ok) { if (W.step < STEPS.length - 1) { W.step++; renderWF(); } else ui.toast('Examination complete — well done!', 'ok'); } else { renderWF(); ui.toast('Skip could not finish this step automatically (check interlocks).', 'bad'); }
     } finally { S.timeScale = ts; skipping = false; }
