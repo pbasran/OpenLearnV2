@@ -172,7 +172,7 @@ export async function createCT(stage) {
   const topLineTall = (x) => TOP_Y0 + 2 * SEC_HALF_B(sectionAt(x * 100));
 
   /* ---------------- state ---------------- */
-  const axes = {tableIn: A(0, 1.50, 0.15, ' m'), tableH: A(0.62, 1.30, 0.035, ' m'), tilt: A(-30, 30, 3, '°')};
+  const axes = {tableIn: A(-0.45, 1.50, 0.15, ' m')  /* negative = parked clear of the gantry */, tableH: A(0.62, 1.30, 0.035, ' m'), tilt: A(-30, 30, 3, '°')};
   axes.tableH.val = axes.tableH.tgt = 1.07;                // starts too low (needs raising to the isocentre)
   const S = {
     timeScale: 1, kvp: 120, mAs: 200, pitch: 1.0, thick: 5, kernel: 'standard', fov: 40, mode: 'helical', trot: 0.5, collim: 40, // mm

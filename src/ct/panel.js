@@ -241,7 +241,7 @@ export function buildCTPanels(stage, ct, ui) {
   async function until(cond, ms = 30000) { const t0 = performance.now(); while (!cond() && performance.now() - t0 < ms) await sleep(100); return cond(); }
   /* withdraw the table fully out of the bore first, and only then lower it (lowering while still inside the gantry makes the couch hit the bore) */
   async function tableOutDown() {
-    axes.tableIn.tgt = 0; syncScan(); await until(() => axes.tableIn.val < 0.02, 30000);
+    axes.tableIn.tgt = -0.40; syncScan(); await until(() => axes.tableIn.val < -0.38, 40000);   // park the couch fully clear of the bore (its tip is still inside the aperture at 0)
     axes.tableH.tgt = 0.95; syncScan();
   }
   async function skipStep() {
