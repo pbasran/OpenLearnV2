@@ -86,4 +86,4 @@ public/assets optimised GLB models (from the original OpenLearn repository)
 * **iPad AR (static, life-size)**: `public/ar/` holds USDZ models of the linac (gantry 0° and 90°) and CT (table in / out) at 1 unit = 1 m, opened through Safari's AR Quick Look. Regenerate with `npx vite --port 5199` then `node tools/export-usdz.mjs` (needs Playwright); poses are listed at the top of `tools/export-usdz.mjs`. These are fixed poses; interactive controls remain in the WebXR/3D viewer.
 * AR scale presets: 1:16, 1:8, 1:4 and life-size. The room is hidden in AR and a shadow-catcher floor is added.
 * Not included yet: VR (headset) mode with in-headset controls; real DICOM data; multi-user/instructor features.
-* **Licensing:** source code is MIT (see `LICENSE`). The bundled 3-D models come from the original OpenLearn repository and their redistribution licence is **not yet verified** — see `ASSET_LICENSES.md`.
+* **Licensing:** source code and the bundled 3-D models are MIT (see `LICENSE` and `ASSET_LICENSES.md`). Third-party software licences are listed in `ASSET_LICENSES.md`.
