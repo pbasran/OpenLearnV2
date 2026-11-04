@@ -94,8 +94,8 @@ const modelDescriptions =
     'Index': '9',
     'Modelname': '10_Secondary_Collimator',
     'Title': 'The Linac Gantry System',
-    'Subtitle': 'Secondary Collimator',
-    'Description': 'Beneath the Primary Collimator, there is a Secondary Collimator. It consists of two jaws that can be moved to either enlarge or minimize the size of the treatment field and helps to define the area of the radiation beam further. Like the Primary Collimator, the Secondary Collimator also absorbs excess particles. It further refines the beam shape and is constructed of lead or tungsten.',
+    'Subtitle': 'Monitor Chamber (Ionization Chamber)',
+    'Description': 'The monitor chamber is a thin, sealed, transmission-type ionization chamber that sits in the beam just below the flattening filter. It measures the radiation actually leaving the head, counts it in monitor units (MU) and ends the beam when the prescribed MU is reached. Segmented electrodes also check beam symmetry and flatness, and a second independent channel acts as a backup.',
   },
 
   {

@@ -65,6 +65,14 @@ export async function createLinac(stage) {
     if (file === '15_KV_Imagine_System') { o.userData.kv = true; }
     groups[grp].add(o);
   }));
+  // monitor (ionization) chamber: a thin sealed disk just below the flattening filter replaces the old secondary-collimator mesh (registered under the same part id)
+  { const scGlb = headStatic.getObjectByName('10_Secondary_Collimator');
+    if (scGlb) { headStatic.updateMatrixWorld(true); const bb = new T.Box3().setFromObject(scGlb), cw = bb.getCenter(new T.Vector3()), cl = headStatic.worldToLocal(cw.clone()); scGlb.visible = false; registry.set('10_Secondary_Collimator', []);
+      const mc = new T.Group(); mc.name = 'monitor_chamber'; mc.position.set(ISO.x, 1.633, 0);
+      const rim = new T.Mesh(new T.CylinderGeometry(0.085, 0.085, 0.012, 48), M.steelBrushed()); rim.castShadow = true; mc.add(rim);
+      const win = new T.Mesh(new T.CylinderGeometry(0.07, 0.07, 0.0135, 48), new T.MeshStandardMaterial({color: 0xd9a441, roughness: 0.35, metalness: 0.1, transparent: true, opacity: 0.9})); mc.add(win);
+      for (const dy of [-0.0045, 0.0045]) { const pl = new T.Mesh(new T.CylinderGeometry(0.062, 0.062, 0.0008, 40), M.brass()); pl.position.y = dy; mc.add(pl); }   // electrode plates
+      gantryInner.add(mc); register('10_Secondary_Collimator', mc); } }
   const gunSolid = gantryInner.getObjectByName('05_Electro_Gun'), wgSolid = gantryInner.getObjectByName('06_Waveguide');
   const kv = gantryInner.getObjectByName('15_KV_Imagine_System');
   // flattening-filter slot assembly (4 positions: 6 MV, 10 MV, 15 MV filters and the thin FFF plate); the slot assembly slides so the filter for the selected beam sits in the beam line
