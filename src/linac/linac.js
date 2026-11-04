@@ -151,6 +151,11 @@ export async function createLinac(stage) {
   // static RF link: from the rotary joint on the gantry axis out to the klystron / circulator pipe; it ends on that pipe and does not pass beyond it
   { const x0 = 1.23, x1 = 1.40; const link = pipe(x1 - x0, 0.03, (x0 + x1) / 2, ISO.y, 0, 'x', stand); link.userData.rfLink = true;
     const tee = new T.Mesh(new T.SphereGeometry(0.038, 16, 12), pipeMat); tee.position.set(x1, ISO.y, 0); tee.castShadow = true; stand.add(tee); tee.userData.rfLink = true; }
+  // klystron output: the stub on top of the klystron is joined to the RF pipe by a short horizontal tube (riser, then one leg along z and one along x)
+  { const sx = 1.515, sz = 0.163, yh = kTop + 0.04, r = 0.025, ball = (x, y, z) => { const b = new T.Mesh(new T.SphereGeometry(r * 1.35, 16, 12), pipeMat); b.position.set(x, y, z); b.castShadow = true; b.userData.rfLink = true; stand.add(b); };
+    const parts = [pipe(yh - kTop, r, sx, (yh + kTop) / 2, sz, 'y', stand), pipe(sz, r, sx, yh, sz / 2, 'z', stand), pipe(sx - 1.40, r, (sx + 1.40) / 2, yh, 0, 'x', stand)];
+    for (const m of parts) m.userData.rfLink = true;
+    ball(sx, yh, sz); ball(sx, yh, 0); ball(1.40, yh, 0); }
   // RF waveguide: klystron -> circulator -> rotary joint -> vertical feed on the gantry -> a top and a bottom header that run along the accelerating waveguide; each header
   // drops/rises through two stubs into the narrow joints between the side-coupled cavities (two ports on top, two underneath), instead of ending on the gun axis
   { const WG_Y = 1.769, WG_R = 0.117, RF_TOP = WG_Y + 0.17, RF_BOT = WG_Y - 0.17, PORTS = [0.54, 0.84], FX = 1.12, PR = 0.028;
