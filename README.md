@@ -1,8 +1,10 @@
+<p align="left"><a href="https://www.vaiderlab.org"><img src="assets/vaiderlab-logo.png" alt="VAIDER Lab: Veterinary AI in Diagnostic Imaging and Radiotherapy" width="200"></a></p>
+
 # OpenLearn V2 — interactive CT and linear-accelerator simulation for medical-physics education
 
 ## [▶ Launch the viewer](https://pbasran.github.io/OpenLearnV2/)
 
-[![Launch viewer](https://img.shields.io/badge/Launch-OpenLearn%20v2%20viewer-1f6f78?style=for-the-badge)](https://pbasran.github.io/OpenLearnV2/)
+[![Launch viewer](https://img.shields.io/badge/Launch-OpenLearn%20v2%20viewer-000000?style=for-the-badge&labelColor=f5c242)](https://pbasran.github.io/OpenLearnV2/)
 
 Direct links: [**Linear accelerator**](https://pbasran.github.io/OpenLearnV2/) · [**CT scanner**](https://pbasran.github.io/OpenLearnV2/?mode=ct)
 
