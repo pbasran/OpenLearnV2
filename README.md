@@ -22,6 +22,13 @@ Scan with a phone camera. For augmented reality use Chrome on an ARCore-capable 
 * **Safety and interlocks** — collision, door, kV/x-ray and tube-heat interlocks.
 * **No specialised hardware** — runs in any modern browser; optional WebXR AR on supported phones.
 
+## Citing OpenLearn
+If you use OpenLearn in teaching or research, please cite:
+
+> Basran PS, Synn SH, Marzano GA, Maeng H, Lotfi-Jam F. Open LEARN: Open access linear accelerator education and augmented reality Navigator. *Physica Medica* 2024;126:104515. [doi:10.1016/j.ejmp.2024.104515](https://doi.org/10.1016/j.ejmp.2024.104515)
+
+GitHub's "Cite this repository" button reads `CITATION.cff` and offers the same reference (BibTeX / APA).
+
 ## Relationship to V1 and research use
 
 * V2 is a **separate, from-scratch rebuild**. It does **not** modify or replace the deployed, IRB-approved V1 study applications (`RealtimeUrbanismLab/OpenLearn`, `VirtualLinac`).

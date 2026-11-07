@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use OpenLearn in your teaching or research, please cite the Physica Medica article below."
+title: "OpenLearn V2: open-access linear accelerator and CT education simulator"
+type: software
+authors:
+  - family-names: Basran
+    given-names: Parminder S.
+    affiliation: "VAIDER Lab, College of Veterinary Medicine, Cornell University"
+repository-code: "https://github.com/pbasran/OpenLearnV2"
+url: "https://pbasran.github.io/OpenLearnV2/"
+license: MIT
+preferred-citation:
+  type: article
+  title: "Open LEARN: Open access linear accelerator education and augmented reality Navigator"
+  authors:
+    - family-names: Basran
+      given-names: Parminder S.
+    - family-names: Synn
+      given-names: Sung Ho
+    - family-names: Marzano
+      given-names: Gregory A.
+    - family-names: Maeng
+      given-names: Hyun
+    - family-names: Lotfi-Jam
+      given-names: Farzin
+  journal: "Physica Medica"
+  volume: "126"
+  pages: "104515"
+  year: 2024
+  doi: "10.1016/j.ejmp.2024.104515"
+  url: "https://www.sciencedirect.com/science/article/pii/S112017972401072X"
